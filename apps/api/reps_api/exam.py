@@ -34,7 +34,7 @@ from .tutor.knowledge_tracing import (
     decayed,
     half_life_days,
 )
-from .verification.math_engine import MathTask, MathVerification, display_latex, grade_answer, verify_problem
+from .verification.math_engine import MathTask, MathVerification, display_latex, fill_computed, grade_answer, verify_problem
 from .verification.status import VerificationStatus
 from .verification.steps import StepReport, check_steps, final_answer
 from .verification.timeouts import VerificationTimeout, run_with_timeout
@@ -365,6 +365,7 @@ def session_state(store: Store, session_id: str) -> dict[str, Any]:
 def _fill(text: str | None, values: dict[str, int]) -> str | None:
     if text is None:
         return None
+    text = fill_computed(text, values)
     return re.sub(r"\{([a-z][a-z0-9]{0,7})\}", lambda m: str(values.get(m.group(1), m.group(0))), text)
 
 

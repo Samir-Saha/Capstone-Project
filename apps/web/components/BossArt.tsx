@@ -158,6 +158,89 @@ function Fading({ look }: { look: Look }) {
   );
 }
 
+function Fulcrum({ look }: { look: Look }) {
+  // A living balance: a tilted beam with weights, an eye at the pivot.
+  return (
+    <svg viewBox="0 0 320 320" className="h-full w-full" aria-hidden>
+      <defs>
+        <linearGradient id="fu-beam" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#FF8A5C" />
+          <stop offset="100%" stopColor="#FFC857" />
+        </linearGradient>
+        <radialGradient id="fu-core" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stopColor="#FFF4D6" />
+          <stop offset="55%" stopColor="#FF8A5C" />
+          <stop offset="100%" stopColor="#5A1E0A" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="160" cy="292" rx="92" ry="12" fill="#000" opacity="0.35" />
+      {/* base pyramid */}
+      <path d="M160 160 L230 280 H90 Z" fill="#2B1A12" stroke="#FF8A5C" strokeWidth="2" />
+      <path d="M160 160 L160 280" stroke="#FF8A5C" strokeWidth="1" opacity="0.4" />
+      {/* tilted beam with chains and weights */}
+      <g transform="rotate(-12 160 150)">
+        <rect x="40" y="142" width="240" height="16" rx="8" fill="url(#fu-beam)" />
+        <path d="M58 158 L58 196 M262 158 L262 216" stroke="#ECEEFF" strokeWidth="2" strokeDasharray="4 4" />
+        <rect x="36" y="196" width="44" height="34" rx="6" fill="#3A2A10" stroke="#FFC857" strokeWidth="2" />
+        <text x="58" y="219" textAnchor="middle" fontSize="16" fontWeight="700" fill="#FFC857" fontFamily="Chakra Petch, sans-serif">F</text>
+        <rect x="236" y="216" width="52" height="40" rx="6" fill="#3A2A10" stroke="#FFC857" strokeWidth="2" />
+        <text x="262" y="242" textAnchor="middle" fontSize="16" fontWeight="700" fill="#FFC857" fontFamily="Chakra Petch, sans-serif">ma</text>
+      </g>
+      {/* pivot eye */}
+      <circle cx="160" cy="150" r="34" fill="#140B07" stroke="#FFC857" strokeWidth="3" />
+      <g style={{ transform: `translate(${look.x * 12}px, ${look.y * 6}px)`, transition: "transform 120ms ease-out" }}>
+        <circle cx="160" cy="150" r="17" fill="url(#fu-core)" />
+        <rect x="157" y="138" width="6" height="24" rx="3" fill="#140B07" />
+      </g>
+    </svg>
+  );
+}
+
+function Stochastra({ look }: { look: Look }) {
+  // A bell-curve wraith trailing dice.
+  return (
+    <svg viewBox="0 0 320 320" className="h-full w-full" aria-hidden>
+      <defs>
+        <linearGradient id="st-body" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#5BE3A1" />
+          <stop offset="100%" stopColor="#0E4A3A" />
+        </linearGradient>
+      </defs>
+      <ellipse cx="160" cy="292" rx="96" ry="12" fill="#000" opacity="0.35" />
+      {/* bell curve body */}
+      <path d="M30 262 C 90 262, 110 70, 160 70 C 210 70, 230 262, 290 262 Z" fill="url(#st-body)" stroke="#9FF3D0" strokeWidth="2" />
+      {/* standard deviation ribs */}
+      <g stroke="#0E1020" strokeWidth="3" opacity="0.5">
+        <path d="M118 150 V262" />
+        <path d="M202 150 V262" />
+        <path d="M86 225 V262" />
+        <path d="M234 225 V262" />
+      </g>
+      {/* face */}
+      <g style={{ transform: `translate(${look.x * 12}px, ${look.y * 6}px)`, transition: "transform 120ms ease-out" }}>
+        <circle cx="142" cy="128" r="10" fill="#0E1020" />
+        <circle cx="178" cy="128" r="10" fill="#0E1020" />
+        <circle cx="145" cy="125" r="3.5" fill="#ECEEFF" />
+        <circle cx="181" cy="125" r="3.5" fill="#ECEEFF" />
+      </g>
+      <path d="M144 162 Q160 172 176 162" stroke="#0E1020" strokeWidth="4" fill="none" strokeLinecap="round" />
+      {/* orbiting dice */}
+      {[
+        [62, 108, -18, 3],
+        [258, 96, 14, 5],
+        [278, 196, -8, 2],
+      ].map(([x, y, r, pips], i) => (
+        <g key={i} transform={`translate(${x} ${y}) rotate(${r})`}>
+          <rect x="-18" y="-18" width="36" height="36" rx="7" fill="#ECEEFF" stroke="#5BE3A1" strokeWidth="2" />
+          {Array.from({ length: pips as number }, (_, k) => (
+            <circle key={k} cx={[-9, 9, 0, -9, 9][k]} cy={[-9, 9, 0, 9, -9][k]} r="3.4" fill="#0E1020" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function Generated({ name, look }: { name: string; look: Look }) {
   const h = hue(name);
   const a = `hsl(${h} 85% 66%)`;
@@ -187,6 +270,8 @@ const BOSSES: Record<string, (look: Look) => React.ReactNode> = {
   "calc-1": (look) => <Vexis look={look} />,
   "phys-kinematics": (look) => <Kinetor look={look} />,
   "daily-raid": (look) => <Fading look={look} />,
+  "phys-203-forces": (look) => <Fulcrum look={look} />,
+  "stat-211": (look) => <Stochastra look={look} />,
 };
 
 const ANIM: Record<BossState, string> = {
