@@ -43,7 +43,8 @@ def test_exam_flow_over_http(client, store):
     fb = client.post(f"/api/exam/sessions/{s['id']}/answer", json={"question_id": q["id"], "answer": key}).json()
     assert fb["correct"] and fb["damage"] > 0 and fb["xp"] == 10
     player = client.get("/api/player").json()
-    assert player["xp"] == 10 and player["streak"] == 1
+    assert player["xp"] == 10 + 20 and player["streak"] == 1  # answer + "First blood" badge
+    assert [a["key"] for a in player["new_achievements"]] == ["first_hit"]
     assert client.post("/api/exam/sessions/nope/next").status_code == 404
 
 

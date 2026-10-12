@@ -4,6 +4,7 @@ import { Code2, Flame, Home, Mic, Swords, Volume2, VolumeX } from "lucide-react"
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AchievementIcon } from "@/components/AchievementIcon";
 import { api, type Player } from "@/lib/api";
 import { play, setSoundEnabled, soundEnabled } from "@/lib/sound";
 
@@ -33,6 +34,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [sound, setSound] = useState(false);
   const [gain, setGain] = useState<{ id: number; xp: number } | null>(null);
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  const [toasts, setToasts] = useState<Player["new_achievements"]>([]);
   const lastLevel = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
@@ -46,6 +48,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
         setTimeout(() => setLevelUp(null), 3200);
       }
       lastLevel.current = p.level;
+      if (p.new_achievements.length) {
+        setToasts((t) => [...t, ...p.new_achievements.filter((a) => !t.some((x) => x.key === a.key))]);
+        play("accepted");
+        void api.markSeen(p.new_achievements.map((a) => a.key)).catch(() => undefined);
+        const keys = p.new_achievements.map((a) => a.key);
+        setTimeout(() => setToasts((t) => t.filter((x) => !keys.includes(x.key))), 6000);
+      }
     } catch {
       setOffline(true);
     }
@@ -171,6 +180,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
+      </div>
+
+      <div className="pointer-events-none fixed bottom-20 right-4 z-50 flex w-[320px] flex-col gap-3 md:bottom-6" role="status" aria-live="polite">
+        {toasts.map((a) => (
+          <div key={a.key} className="pointer-events-auto flex animate-pop items-start gap-3 rounded-panel border border-xp/50 bg-surface/95 p-4 shadow-[0_10px_40px_-10px_rgba(255,200,87,0.5)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-xp/20 text-xp ring-1 ring-xp/40">
+              <AchievementIcon name={a.icon} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-xs text-xp">Achievement unlocked, +20 XP</div>
+              <div className="font-display font-semibold">{a.name}</div>
+              <div className="text-sm text-muted">{a.text}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {levelUp !== null && (

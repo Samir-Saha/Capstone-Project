@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import arena, exam, generation, interview, player
+from . import achievements, arena, exam, generation, interview, player
 from .ingest.pdf import MAX_BYTES, ExtractionError, extract_pdf
 from .llm import llm_from_env
 from .store import get_store
@@ -138,6 +138,22 @@ class RenameIn(BaseModel):
 @app.post("/api/player/name")
 def rename_player(body: RenameIn) -> dict[str, Any]:
     return player.rename(get_store(), body.name)
+
+
+@app.get("/api/achievements")
+def list_achievements() -> list[dict[str, Any]]:
+    achievements.check(get_store())
+    return achievements.listing(get_store())
+
+
+class SeenIn(BaseModel):
+    keys: list[str] = Field(max_length=50)
+
+
+@app.post("/api/achievements/seen")
+def achievements_seen(body: SeenIn) -> dict[str, bool]:
+    achievements.mark_seen(get_store(), body.keys)
+    return {"ok": True}
 
 
 @app.get("/api/telemetry/verification")

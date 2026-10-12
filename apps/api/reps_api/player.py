@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import exam
+from . import achievements, exam
 from .progression import level_for, streaks
 from .store import Store
 
 
 def summary(store: Store) -> dict[str, Any]:
+    achievements.check(store)  # unlock anything earned since the last look (awards XP once)
     player = store.one("select display_name, created_at from player where id = 1")
     total = store.one("select coalesce(sum(amount), 0) n from xp_events")["n"]
     lvl = level_for(total)
@@ -66,6 +67,8 @@ def summary(store: Store) -> dict[str, Any]:
             "interview": active_interview,
         },
         "recent_xp": recent,
+        "new_achievements": achievements.unseen(store),
+        "achievements": {"unlocked": store.one("select count(*) n from achievements")["n"], "total": len(achievements.ACHIEVEMENTS)},
         "xp_rules": "XP comes from verified correct answers, accepted solutions and finished sessions. It's motivation, not a grade.",
     }
 

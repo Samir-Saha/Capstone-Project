@@ -157,3 +157,28 @@ def test_phase_two_at_half_hp_asks_harder_questions(store):
             changed = out
             break
     assert changed and changed["session"]["phase"] == 2 and changed["session"]["hp"] <= exam.PHASE2_HP
+
+
+# ------------------------------------------------------------------ achievements
+
+
+def test_achievements_unlock_once_from_real_events(store):
+    from reps_api import achievements, player
+
+    assert achievements.check(store) == []
+    rng = random.Random(4)
+    s = exam.start_session(store, "phys-kinematics")
+    while True:
+        q = _ask(store, s["id"], rng)
+        out = exam.submit_answer(store, s["id"], q["id"], _key(store, q["id"]), use_pool=False)
+        if out["session"]["status"] != "active":
+            break
+    summary = player.summary(store)
+    keys = {a["key"] for a in summary["new_achievements"]}
+    assert {"first_hit", "first_boss", "flawless", "no_hints"} <= keys
+    xp_before = summary["xp"]
+    assert achievements.check(store) == []  # nothing twice
+    achievements.mark_seen(store, list(keys))
+    again = player.summary(store)
+    assert again["new_achievements"] == [] and again["xp"] == xp_before
+    assert store.one("select count(*) n from xp_events where reason = 'achievement'")["n"] == len(keys)

@@ -46,6 +46,8 @@ export type Health = {
 
 export type WeakTopic = { id: string; name: string; course: string; course_id: string; mastery: number; fading: number; attempts: number; provisional: boolean };
 
+export type AchievementItem = { key: string; name: string; text: string; icon: string; xp: number; unlocked_at: string | null };
+
 export type RaidPreview = {
   available: boolean;
   session_id: string | null;
@@ -75,6 +77,8 @@ export type Player = {
   };
   recent_xp: { reason: string; amount: number; created_at: string }[];
   raid: RaidPreview;
+  new_achievements: { key: string; name: string; text: string; icon: string }[];
+  achievements: { unlocked: number; total: number };
   xp_rules: string;
 };
 
@@ -382,6 +386,8 @@ export const api = {
   player: () => request<Player>("/api/player"),
   rename: (name: string) => post<Player>("/api/player/name", { name }),
 
+  achievements: () => request<AchievementItem[]>("/api/achievements"),
+  markSeen: (keys: string[]) => post<{ ok: boolean }>("/api/achievements/seen", { keys }),
   courses: () => request<Course[]>("/api/exam/courses"),
   uploadCourse: (file: File, name: string) => {
     const form = new FormData();

@@ -192,6 +192,12 @@ create table if not exists coding_submissions (
 );
 create index if not exists coding_submissions_slug on coding_submissions (slug, created_at);
 
+create table if not exists achievements (
+  key text primary key,
+  unlocked_at text not null,
+  seen integer not null default 0
+);
+
 create table if not exists resumes (
   id text primary key,
   filename text not null,
