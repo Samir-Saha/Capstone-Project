@@ -9,3 +9,8 @@ node_modules/
 .next/
 eval/results*.json
 data/
+apps/api/data/
+apps/api/.venv/
+tsconfig.tsbuildinfo
+/screenshots/
+apps/web/screenshots/

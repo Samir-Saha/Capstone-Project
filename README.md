@@ -1,99 +1,84 @@
 # Reps
 
-Study any class, grind coding problems, and run mock interviews built from your resume, all as one game. KTP technical capstone, CS / ITI track.
+One training ground for college students: fight bosses built from your courses, solve coding problems in the Arena, and run mock interviews in the Gauntlet. KTP technical capstone, CS / ITI track.
 
 Wherever an answer can be checked by running something, Reps checks it that way. The AI explains results; it doesn't decide them.
 
-## Status
+![Boss fight](docs/screenshots/05-fight-hit.png)
 
-| Area | State |
-| --- | --- |
-| Math answer-key verification (SymPy + independent mpmath check) | Built, tested |
-| Student math grading (equivalent forms accepted) | Built, tested |
-| Coding verification (reference vs brute force, 300+ seeded inputs) | Built, tested |
-| Coding grading (public + hidden tests, verdicts) | Built, tested on local runner; Judge0 adapter tested with a mock only |
-| Bayesian Knowledge Tracing + boss targeting | Built, tested |
-| BKT evaluation pipeline | Built, checked on synthetic data. **Not yet run on ASSISTments** |
-| PDF extraction and chunking | Built, tested |
-| Database schema + row level security | Built, tested on local Postgres. **Not yet applied to Supabase** |
-| LLM adapter, question generation, topic extraction | Not started |
-| Background worker (Redis) | Not started |
-| Frontend (Next.js) | Not started |
-| Interview mode, voice | Not started |
+## Run it
+
+**Windows:** install [Python 3.11+](https://www.python.org/downloads/) (tick "Add to PATH") and [Node.js 20+](https://nodejs.org/), then double-click `start-reps.bat`. The first run installs everything; after that it opens two windows (API and web) and your browser at http://localhost:3000.
+
+**macOS / Linux:** `./start-reps.sh`
+
+Use Chrome or Edge for voice interviews. Everything else works in any modern browser. Progress is saved locally in `apps/api/data/reps.db`.
+
+Optional: copy `.env.example` to `.env` and set `LLM_API_KEY` and `LLM_MODEL` to turn on question generation from your own PDFs and AI STAR scoring in interviews.
+
+## The three modes
+
+| Mode | What you do | What's checked, and how |
+| --- | --- | --- |
+| Boss fights | Answer questions; correct answers damage the boss, wrong ones cost a heart | Every answer key is computed twice (SymPy symbolic and mpmath numeric) before you see the question; your answer is checked by symbolic equivalence |
+| Arena | Solve original Python problems by pattern | Your code runs against public and hidden tests; each problem passed reference vs brute-force checks on 300+ random inputs before publishing |
+| Gauntlet | Answer behavioral, resume, and coding questions out loud or typed | Pace and pauses measured from microphone audio levels; filler words and structure counted from the transcript; code run against tests; STAR scores only with an AI key, labeled as AI judgment |
+
+### Game rules
+
+- **Boss HP** = 100 × (1 − average mastery) across the course's topics. The HP bar has one segment per topic, so the long red segments are your weak topics.
+- **Mastery** is a Bayesian Knowledge Tracing estimate per topic, updated after every graded answer and kept between fights.
+- **Win** by getting the boss to 25 HP or less (75% average mastery). **Lose** if your 5 hearts run out. A fight is at most 15 questions.
+- **Targeting:** the boss asks every topic once, then mostly attacks your weakest topic, but never the same one more than twice in a row. Question difficulty follows your mastery.
+- **XP** comes only from confirmed events (verified correct answers, accepted solutions, finished sessions) and each event pays once. XP is motivation, not a grade.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  web[Next.js app] -->|user JWT| sb[(Supabase<br/>Postgres + Auth + Storage)]
-  web -->|REST| api[FastAPI]
-  api -->|service role| sb
-  api --> q[(Redis queue)]
-  q --> worker[Worker]
-  worker --> llm[LLM API]
-  worker --> verify[Verification engine<br/>SymPy + mpmath]
-  api --> runner[Code runner<br/>Judge0 / local]
-  worker --> runner
-  api --> bkt[Knowledge tracing<br/>BKT]
+  browser[Next.js app] -->|/api| api[FastAPI]
+  api --> store[(SQLite, local mode)]
+  api --> pool[Verification workers<br/>SymPy + mpmath]
+  api --> runner[Code runner<br/>local or Judge0]
+  api --> bkt[Knowledge tracing]
+  api -.optional.-> llm[LLM API]
+  browser --> mic[Mic + Web Audio<br/>Speech API]
 ```
 
-The browser reads its own rows directly from Supabase under row level security. Anything that decides correctness (questions, answer keys, attempts, mastery, XP) is written only by the backend.
+The hosted version swaps SQLite for Supabase: the schema and row level security policies are in `supabase/migrations` and tested in CI.
 
-## How verification works
+## Components (track requirements)
 
-**Math.** A generated problem is a template plus a declarative task (`derivative`, `integral_definite`, `solve`, `limit`, ...), never runnable code. For each instance the engine computes the answer symbolically with SymPy and again numerically with mpmath at 30 digits (numerical differentiation, quadrature, a root scan over [-100, 100], approach-the-point limits). If the generator supplied its own key, that's a third check. Any disagreement rejects the problem. Expressions pass through a whitelist parser, so `__import__` and friends never reach `eval`.
+| Component | Category | Where |
+| --- | --- | --- |
+| PDF parsing into page-cited chunks, resume claim extraction | File processing | `reps_api/ingest`, `reps_api/interview.py` |
+| Question generation from your notes, AI STAR scoring | AI / NLP | `reps_api/generation.py`, `reps_api/llm.py` |
+| Answer-key verification, differential testing, code execution | Algorithm + external API | `reps_api/verification` |
+| Bayesian Knowledge Tracing and the boss policy | Machine learning | `reps_api/tutor`, `eval/assistments_bkt.py` |
+| Live voice: transcript, audio-level pause detection, spoken questions | Real-time | `apps/web/lib/voice.ts` |
+| Course generation jobs with persisted progress | Background jobs | `reps_api/generation.py` |
 
-**Code.** Each problem ships a reference solution, a brute-force solution, and a seeded input generator. The two solutions must differ structurally (checked on the syntax tree with names normalized, so a renamed copy fails) and agree on every edge case plus 300 random inputs. Hidden test outputs come from the verified reference. Student code runs in the sandbox on inputs only; expected outputs never enter it, and the backend does the comparison, so student code can't read or forge results.
-
-**Knowledge tracing.** Standard BKT per topic. Boss HP = 100 × (1 − mean P(known)) across the exam's topics. The boss covers every topic once, explores 15% of the time, and otherwise attacks the weakest topic, but never the same one more than twice in a row. Default parameters are starting values, not fitted ones.
-
-## Repository
-
-```
-apps/api/            FastAPI backend
-  reps_api/verification/  math engine, coding engine, sandbox harness, executors
-  reps_api/tutor/         knowledge tracing
-  reps_api/ingest/        PDF extraction
-  reps_api/content/       verified seed coding problems
-  eval/                   BKT evaluation (ASSISTments)
-  tests/
-supabase/migrations/  schema and RLS
-supabase/tests/       RLS tests (run on plain Postgres with a small Supabase shim)
-```
-
-## Setup
-
-Requires Python 3.11+ and (for the DB tests) PostgreSQL 16.
+## Tests
 
 ```bash
-cd apps/api
-pip install -e ".[dev]"
-pytest -q                                  # 91 tests
-python eval/assistments_bkt.py --synthetic # evaluation pipeline self-check
-INTERNAL_API_TOKEN=dev uvicorn reps_api.main:app --reload
+cd apps/api && pytest -q                                  # 115 backend tests
+python eval/assistments_bkt.py --synthetic                # BKT evaluation pipeline self-check
+cd ../web && npm run typecheck && npm run build
+REPS_DB_PATH=../api/data/reps.db python e2e/playthrough.py   # browser playthrough of all three modes
 ```
 
-Database tests:
-
-```bash
-createdb reps_test
-psql -v ON_ERROR_STOP=1 -d reps_test \
-  -f supabase/tests/supabase_shim.sql \
-  -f supabase/migrations/20261012000100_core.sql \
-  -f supabase/tests/rls_test.sql
-```
-
-Copy `.env.example` to `.env` for configuration.
+The database tests run the Supabase migration on plain Postgres with row level security checks (see `.github/workflows/ci.yml`).
 
 ## Known limitations
 
-- The local code runner is a resource-limited subprocess, not a security sandbox (no network isolation). Production must set `JUDGE0_URL`; the app refuses to start the local runner when `REPS_ENV=production`.
-- Only Python submissions for now.
-- Math verification covers single-variable calculus and algebra tasks. Anything else is marked `unsupported` and never published as verified.
-- Root finding only searches [-100, 100]; problems with roots outside are marked unsupported.
-- Scanned PDFs are refused until OCR is added.
-- BKT parameters are defaults until the ASSISTments evaluation is run.
+- **Local runner isn't a sandbox.** On Linux/macOS it limits CPU and memory; on Windows only time. It doesn't block network access. Production must use Judge0 (`JUDGE0_URL`), and the API refuses the local runner when `REPS_ENV=production`.
+- **Windows support is written but tested only on Linux so far.** The Windows-specific code path (no resource limits) is covered by a test that forces it.
+- **Voice** depends on the browser's speech recognition (Chrome, Edge). It often drops "um" and "uh", so filler counts run low. Pause and pace numbers come from audio levels and don't depend on it. Voice hasn't been tested automatically; the e2e test types its answers.
+- **Built-in courses** cover Calculus I and kinematics. Your own courses need an AI key, and only computational questions are generated so far.
+- **Resume claims** are found with simple rules (bullets and numbers), not AI.
+- **BKT parameters** are defaults; the ASSISTments evaluation hasn't been run on real data yet.
+- **Single player, no login** in local mode. Supabase auth arrives with the hosted version.
 
-## Future improvements
+## Next
 
-LLM question generation with grounding citations, Redis worker, Next.js app, interview mode with voice, OCR, C++ and Java through Judge0.
+Phone layout polish, Supabase auth and hosting, Judge0, conceptual (non-computational) questions with rubric grading, more Arena problems and languages.

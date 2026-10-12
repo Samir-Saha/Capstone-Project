@@ -1,0 +1,107 @@
+@import "@fontsource/chakra-petch/500.css";
+@import "@fontsource/chakra-petch/600.css";
+@import "@fontsource/chakra-petch/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "katex/dist/katex.min.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #0e1020;
+  color: #eceeff;
+}
+
+body {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  /* faint blueprint grid: the floor of the training hall */
+  background-image:
+    linear-gradient(rgba(139, 108, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 108, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+::selection {
+  background: rgba(139, 108, 255, 0.45);
+}
+
+:focus-visible {
+  outline: 2px solid #3fd8e6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-panel border border-line bg-surface;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-chip px-4 py-2 font-display text-[15px] font-semibold tracking-wide transition-[transform,background,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn:not(:disabled):active {
+    transform: translateY(1px) scale(0.98);
+  }
+  .btn-primary {
+    @apply btn bg-violet text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset,0_6px_20px_-6px_rgba(139,108,255,0.7)] hover:bg-[#9b80ff];
+  }
+  .btn-cyan {
+    @apply btn bg-cyan text-ink hover:bg-[#62e3ee];
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-raised/60 text-text hover:border-violet/60 hover:bg-raised;
+  }
+  .kbd {
+    @apply ml-1 rounded border border-white/20 px-1.5 py-px font-mono text-[11px] font-normal opacity-80;
+  }
+  .field {
+    @apply w-full rounded-chip border border-line bg-ink/70 px-3 py-2.5 text-text placeholder:text-muted/70 focus:border-violet focus:outline-none focus:ring-2 focus:ring-violet/30;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-muted;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-raised px-2.5 py-0.5 text-xs text-muted;
+  }
+  .h-display {
+    @apply font-display font-semibold tracking-tight;
+  }
+}
+
+.katex {
+  font-size: 1.15em;
+}
+.math-hero .katex {
+  font-size: 1.9em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* CodeMirror sits inside our panels */
+.cm-editor {
+  height: 100%;
+  font-size: 14px;
+}
+.cm-editor .cm-scroller {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}

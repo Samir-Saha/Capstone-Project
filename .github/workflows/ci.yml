@@ -44,3 +44,17 @@ jobs:
             -f supabase/tests/supabase_shim.sql \
             -f supabase/migrations/20261012000100_core.sql \
             -f supabase/tests/rls_test.sql
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build

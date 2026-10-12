@@ -1,0 +1,20 @@
+import type { Metadata, Viewport } from "next";
+import { Shell } from "@/components/Shell";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Reps",
+  description: "Train for the exam, master the patterns, win the interview.",
+};
+
+export const viewport: Viewport = { themeColor: "#0E1020", width: "device-width", initialScale: 1 };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Shell>{children}</Shell>
+      </body>
+    </html>
+  );
+}
