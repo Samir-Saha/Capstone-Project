@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check reps_api tests eval
+      - run: ruff format --check reps_api tests eval
+      - run: pytest -q
+      - run: python eval/assistments_bkt.py --synthetic
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migrate and run RLS tests
+        run: |
+          createdb reps_test
+          psql -v ON_ERROR_STOP=1 -d reps_test \
+            -f supabase/tests/supabase_shim.sql \
+            -f supabase/migrations/20261012000100_core.sql \
+            -f supabase/tests/rls_test.sql
