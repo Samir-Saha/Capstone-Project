@@ -152,4 +152,135 @@ def generate(rng):
     public_examples=[[[1, 3, 4], 6], [[2], 3]],
 )
 
-SEED_PROBLEMS = [LONGEST_BUDGET_WINDOW, ISLAND_GROUPS, FEWEST_PROBLEM_SETS]
+PAIR_UP = CodingProblemSpec(
+    title="Pair Up for the Project",
+    pattern="two pointers",
+    difficulty="easy",
+    statement=("skills is sorted in non-decreasing order. Count the pairs of positions i < j where skills[i] + skills[j] equals target exactly."),
+    signature="def solve(skills: list[int], target: int) -> int",
+    reference_solution="""
+def solve(skills, target):
+    lo, hi = 0, len(skills) - 1
+    pairs = 0
+    while lo < hi:
+        s = skills[lo] + skills[hi]
+        if s < target:
+            lo += 1
+        elif s > target:
+            hi -= 1
+        elif skills[lo] == skills[hi]:
+            n = hi - lo + 1
+            pairs += n * (n - 1) // 2
+            break
+        else:
+            left_run = 1
+            while lo + left_run < hi and skills[lo + left_run] == skills[lo]:
+                left_run += 1
+            right_run = 1
+            while hi - right_run > lo and skills[hi - right_run] == skills[hi]:
+                right_run += 1
+            pairs += left_run * right_run
+            lo += left_run
+            hi -= right_run
+    return pairs
+""",
+    brute_force_solution="""
+def solve(skills, target):
+    count = 0
+    for i in range(len(skills)):
+        for j in range(i + 1, len(skills)):
+            if skills[i] + skills[j] == target:
+                count += 1
+    return count
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 20)
+    return [sorted(rng.randint(-10, 10) for _ in range(n)), rng.randint(-15, 15)]
+""",
+    edge_cases=[[[], 0], [[5], 10], [[2, 2, 2, 2], 4], [[1, 1, 3, 3], 4], [[-3, 0, 3], 0]],
+    public_examples=[[[1, 2, 3, 4, 5], 6], [[2, 2, 2], 4]],
+)
+
+FIRST_PASSING = CodingProblemSpec(
+    title="First Passing Score",
+    pattern="binary search",
+    difficulty="easy",
+    statement=("scores is sorted in non-decreasing order. Return the index of the first score that is at least cutoff, or -1 if no score passes. Aim for O(log n)."),
+    signature="def solve(scores: list[int], cutoff: int) -> int",
+    reference_solution="""
+def solve(scores, cutoff):
+    lo, hi = 0, len(scores)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if scores[mid] >= cutoff:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo if lo < len(scores) else -1
+""",
+    brute_force_solution="""
+def solve(scores, cutoff):
+    for index, value in enumerate(scores):
+        if value >= cutoff:
+            return index
+    return -1
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 30)
+    return [sorted(rng.randint(0, 100) for _ in range(n)), rng.randint(-5, 105)]
+""",
+    edge_cases=[[[], 50], [[70], 70], [[70], 71], [[60, 60, 60], 60], [[1, 2, 3], 0]],
+    public_examples=[[[42, 55, 61, 61, 90], 60], [[10, 20], 95]],
+)
+
+BALANCED_NOTES = CodingProblemSpec(
+    title="Balanced Margin Notes",
+    pattern="stacks",
+    difficulty="easy",
+    statement=("s contains only the characters ()[]{}. Return True if every bracket is closed by the matching type in the right order, otherwise False."),
+    signature="def solve(s: str) -> bool",
+    reference_solution="""
+def solve(s):
+    pairs = {")": "(", "]": "[", "}": "{"}
+    stack = []
+    for ch in s:
+        if ch in pairs:
+            if not stack or stack.pop() != pairs[ch]:
+                return False
+        else:
+            stack.append(ch)
+    return not stack
+""",
+    brute_force_solution="""
+def solve(s):
+    previous = None
+    while previous != s:
+        previous = s
+        s = s.replace("()", "").replace("[]", "").replace("{}", "")
+    return s == ""
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 12)
+    if rng.random() < 0.5:
+        out = []
+        opens = []
+        for _ in range(n):
+            if opens and rng.random() < 0.5:
+                out.append({"(": ")", "[": "]", "{": "}"}[opens.pop()])
+            else:
+                ch = rng.choice("([{")
+                opens.append(ch)
+                out.append(ch)
+        while opens and rng.random() < 0.8:
+            out.append({"(": ")", "[": "]", "{": "}"}[opens.pop()])
+        return ["".join(out)]
+    return ["".join(rng.choice("()[]{}") for _ in range(n))]
+""",
+    edge_cases=[[""], ["("], [")"], ["([)]"], ["{[()]}"], ["(()"]],
+    public_examples=[["([]{})"], ["(]"]],
+)
+
+SEED_PROBLEMS = [PAIR_UP, FIRST_PASSING, BALANCED_NOTES, LONGEST_BUDGET_WINDOW, ISLAND_GROUPS, FEWEST_PROBLEM_SETS]

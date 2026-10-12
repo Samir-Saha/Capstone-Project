@@ -150,3 +150,12 @@ def test_outage_is_never_graded_as_a_pass(window):
     down = Judge0Executor("http://judge0.test", client=httpx.Client(transport=_judge0_transport("", fail=True)), poll_s=0)
     result = grade_submission(LONGEST_BUDGET_WINDOW.reference_solution, window.tests, down, include_hidden=True)
     assert result.verdict == "execution_unavailable" and result.passed == 0
+
+
+def test_runner_without_rlimits_still_grades_and_times_out(window):
+    """The Windows code path: no rlimits, wall-clock timeout only."""
+    ex = LocalSubprocessExecutor(enforce_limits=False)
+    good = grade_submission(LONGEST_BUDGET_WINDOW.reference_solution, window.tests, ex, include_hidden=True)
+    assert good.verdict == "accepted"
+    slow = grade_submission("def solve(m, b):\n    while True:\n        pass", window.tests, ex, include_hidden=True)
+    assert slow.verdict == "time_limit_exceeded"

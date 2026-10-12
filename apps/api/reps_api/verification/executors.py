@@ -16,7 +16,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import resource
 import signal
 import subprocess
 import sys
@@ -56,17 +55,43 @@ def _parse_marker(stdout: str) -> dict[str, Any] | None:
         return None
 
 
+IS_WINDOWS = sys.platform == "win32"
+
+
+def _posix_limits(cpu_seconds: int, memory_mb: int):
+    import resource  # POSIX only
+
+    def apply() -> None:
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
+        mem = memory_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (1024 * 1024, 1024 * 1024))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        os.setsid()
+
+    return apply
+
+
 class LocalSubprocessExecutor:
+    """On Linux/macOS: CPU, memory and file-size rlimits plus a wall-clock timeout.
+    On Windows: wall-clock timeout only (no rlimits there), so memory isn't capped."""
+
     name = "local-subprocess"
 
+    def __init__(self, enforce_limits: bool | None = None) -> None:
+        self.enforce_limits = (not IS_WINDOWS) if enforce_limits is None else enforce_limits
+
     def run(self, job: dict[str, Any], cpu_seconds: int = 5, memory_mb: int = 512) -> ExecutionResult:
-        def limits() -> None:
-            resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
-            mem = memory_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
-            resource.setrlimit(resource.RLIMIT_FSIZE, (1024 * 1024, 1024 * 1024))
-            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-            os.setsid()
+        env = {"PYTHONHASHSEED": "0", "PYTHONIOENCODING": "utf-8"}
+        if IS_WINDOWS:
+            env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
+        else:
+            env["PATH"] = "/usr/bin:/bin"
+        extra: dict[str, Any] = {}
+        if self.enforce_limits:
+            extra["preexec_fn"] = _posix_limits(cpu_seconds, memory_mb)
+        elif IS_WINDOWS:
+            extra["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
         started = time.perf_counter()
         with tempfile.TemporaryDirectory(prefix="reps-run-") as workdir:
@@ -76,15 +101,18 @@ class LocalSubprocessExecutor:
                     input=json.dumps(job),
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     cwd=workdir,
-                    env={"PATH": "/usr/bin:/bin", "PYTHONHASHSEED": "0"},
-                    preexec_fn=limits,
-                    timeout=cpu_seconds * 3 + 2,
+                    env=env,
+                    timeout=cpu_seconds * (3 if self.enforce_limits else 1) + 2,
+                    **extra,
                 )
             except subprocess.TimeoutExpired:
                 return ExecutionResult(status="time_limit_exceeded", wall_ms=int((time.perf_counter() - started) * 1000))
         wall_ms = int((time.perf_counter() - started) * 1000)
-        if proc.returncode in (-signal.SIGXCPU, -signal.SIGKILL):
+        killed = {-getattr(signal, "SIGXCPU", 24), -getattr(signal, "SIGKILL", 9)}
+        if proc.returncode in killed:
             return ExecutionResult(status="time_limit_exceeded", stderr=proc.stderr[-1000:], wall_ms=wall_ms)
         payload = _parse_marker(proc.stdout)
         if payload is None:

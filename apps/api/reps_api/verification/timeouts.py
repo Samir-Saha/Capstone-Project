@@ -1,46 +1,83 @@
-"""Run a CPU-heavy function in a child process with a hard wall-clock limit.
+"""Run CPU-heavy functions in worker processes with a hard wall-clock limit.
 
 SymPy can run for minutes on adversarial input (huge simplifications, integrals with
 no closed form). A thread can't be killed; a process can.
+
+Works on Windows, macOS and Linux: a small pool of warm worker processes (SymPy
+already imported) handles jobs. When a job overruns, the whole pool is killed and
+rebuilt, which is rare and costs about a second.
 """
 
 from __future__ import annotations
 
 import multiprocessing as mp
+import sys
+import threading
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
-# forkserver, not fork: the API process runs threads, and forking a threaded
-# process can deadlock the child. The server preloads SymPy once, so each job
-# still starts fast.
-_CTX = mp.get_context("forkserver")
-_CTX.set_forkserver_preload(["sympy", "mpmath", "reps_api.verification.math_engine"])
+# forkserver where available (POSIX): forking a threaded API process can deadlock.
+# Windows only has spawn.
+_METHOD = "spawn" if sys.platform == "win32" else "forkserver"
+_WORKERS = 2
 
 
 class VerificationTimeout(TimeoutError):
     pass
 
 
-def _child(conn, fn: Callable[..., Any], args: tuple, kwargs: dict) -> None:
-    try:
-        conn.send(("ok", fn(*args, **kwargs)))
-    except BaseException as err:  # report everything, including SystemExit
-        conn.send(("error", f"{err.__class__.__name__}: {err}"))
-    finally:
-        conn.close()
+def _warm() -> None:
+    import mpmath  # noqa: F401
+    import sympy  # noqa: F401
+
+    from . import math_engine  # noqa: F401
+
+
+class _Pool:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pool: ProcessPoolExecutor | None = None
+
+    def _get(self) -> ProcessPoolExecutor:
+        with self._lock:
+            if self._pool is None:
+                self._pool = ProcessPoolExecutor(max_workers=_WORKERS, mp_context=mp.get_context(_METHOD), initializer=_warm)
+            return self._pool
+
+    def _reset(self, broken: ProcessPoolExecutor) -> None:
+        with self._lock:
+            if self._pool is not broken:
+                return
+            for proc in list(getattr(broken, "_processes", {}).values()):
+                proc.kill()
+            broken.shutdown(wait=False, cancel_futures=True)
+            self._pool = None
+
+    def run(self, fn: Callable[..., Any], args: tuple, kwargs: dict, timeout_s: float) -> Any:
+        pool = self._get()
+        future = pool.submit(fn, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout_s)
+        except FutureTimeout as err:
+            self._reset(pool)
+            raise VerificationTimeout(f"exceeded {timeout_s:.0f}s") from err
+
+    def shutdown(self) -> None:
+        with self._lock:
+            if self._pool is not None:
+                self._pool.shutdown(wait=False, cancel_futures=True)
+                self._pool = None
+
+
+_POOL = _Pool()
 
 
 def run_with_timeout(fn: Callable[..., Any], *args: Any, timeout_s: float = 15.0, **kwargs: Any) -> Any:
-    parent, child = _CTX.Pipe(duplex=False)
-    proc = _CTX.Process(target=_child, args=(child, fn, args, kwargs), daemon=True)
-    proc.start()
-    child.close()
-    if not parent.poll(timeout_s):
-        proc.kill()
-        proc.join()
-        raise VerificationTimeout(f"exceeded {timeout_s:.0f}s")
-    kind, payload = parent.recv()
-    proc.join()
-    if kind == "error":
-        raise RuntimeError(payload)
-    return payload
+    """Run fn(*args, **kwargs) in a worker process. fn must be importable (module level)."""
+    return _POOL.run(fn, args, kwargs, timeout_s)
+
+
+def shutdown_pool() -> None:
+    _POOL.shutdown()

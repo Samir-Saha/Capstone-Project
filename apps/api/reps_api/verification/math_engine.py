@@ -502,9 +502,19 @@ def verify_problem(spec: MathProblemSpec, seed: int) -> MathVerification:
     return verify_instance(instance)
 
 
-def grade_answer(task: MathTask, answer_key: str, student: str, seed: int = 0) -> GradeResult:
-    """Check a student's answer against a verified key. Equivalent forms are accepted."""
+def grade_answer(task: MathTask, answer_key: str, student: str, seed: int = 0, rel_tol: float | None = None) -> GradeResult:
+    """Check a student's answer against a verified key. Equivalent forms are accepted.
+
+    rel_tol: for numeric word problems where a rounded decimal is expected
+    (e.g. 0.01 accepts answers within 1%). None means exact up to float noise.
+    """
     rng = random.Random(seed)
+
+    def close(a, b) -> bool:
+        if rel_tol is None:
+            return _close(a, b)
+        return abs(a - b) <= max(ABS_TOL, rel_tol * max(abs(a), abs(b)))
+
     x = symbol(task.var)
     try:
         if task.kind == "solve":
@@ -512,7 +522,7 @@ def grade_answer(task: MathTask, answer_key: str, student: str, seed: int = 0) -
             parts = [re.sub(rf"^\s*{task.var}\s*=", "", p) for p in parts]
             got = sorted(_num(parse_math(p, ())) for p in parts)
             want = sorted(_num(parse_math(p, ())) for p in answer_key.split(","))
-            ok = len(got) == len(want) and all(_close(a, b) for a, b in zip(got, want))
+            ok = len(got) == len(want) and all(close(a, b) for a, b in zip(got, want))
             return GradeResult(correct=ok, status="correct" if ok else "incorrect", method="root set comparison")
         s = parse_math(student, _vars(task))
         k = parse_math(answer_key, _vars(task))
@@ -535,7 +545,35 @@ def grade_answer(task: MathTask, answer_key: str, student: str, seed: int = 0) -
         if k in (sp.oo, -sp.oo) or s in (sp.oo, -sp.oo):
             ok = s == k
         else:
-            ok = _close(_num(s), _num(k))
-        return GradeResult(correct=ok, status="correct" if ok else "incorrect", method="numeric value")
+            ok = close(_num(s), _num(k))
+        method = "numeric value" if rel_tol is None else f"numeric value within {rel_tol:.0%}"
+        return GradeResult(correct=ok, status="correct" if ok else "incorrect", method=method)
     ok, detail = _same_function(s, k, x, rng)
     return GradeResult(correct=ok, status="correct" if ok else "incorrect", method="numeric sampling", detail=detail)
+
+
+def display_latex(task: MathTask) -> str | None:
+    """How the instantiated task is shown to the student (KaTeX source)."""
+    v = _vars(task)
+    x = sp.latex(symbol(task.var))
+    f = parse_math(task.expr, v)
+    body = sp.latex(sp.expand(f) if task.kind == "solve" else f)
+    if task.kind == "derivative":
+        order = "" if task.order == 1 else f"^{{{task.order}}}"
+        return rf"\frac{{d{order}}}{{d{x}{order}}}\left[{body}\right]"
+    if task.kind == "derivative_at":
+        at = sp.latex(parse_math(task.at or "", ()))
+        prime = "'" * task.order
+        return rf"f({x}) = {body} \qquad f{prime}({at}) = \;?"
+    if task.kind == "integral_definite":
+        lo = sp.latex(parse_math(task.lower or "", ()))
+        hi = sp.latex(parse_math(task.upper or "", ()))
+        return rf"\int_{{{lo}}}^{{{hi}}} {body} \, d{x}"
+    if task.kind == "integral_indefinite":
+        return rf"\int {body} \, d{x}"
+    if task.kind == "solve":
+        return rf"{body} = 0"
+    if task.kind == "limit":
+        at = sp.latex(parse_math(task.at or "", ()))
+        return rf"\lim_{{{x} \to {at}}} {body}"
+    return None
