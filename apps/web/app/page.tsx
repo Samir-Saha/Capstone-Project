@@ -4,6 +4,7 @@ import { Check, Code2, Mic, Pencil, Play, Swords } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BossArt } from "@/components/BossArt";
+import { RaidCard } from "@/components/RaidCard";
 import { MasteryBar, SegmentedHp } from "@/components/Hud";
 import { CountStat, ErrorNote, Spinner, XP_REASON, timeAgo } from "@/components/ui";
 import { api, notifyProgress, type Course, type InterviewHistoryItem, type Player, type ProblemSummary } from "@/lib/api";
@@ -170,7 +171,7 @@ export default function Hub() {
       <section className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
         <div className="panel p-6">
           <h2 className="h-display text-xl">Weak spots</h2>
-          <p className="mt-1 text-sm text-muted">Lowest mastery first, from your actual answers. Faded bars have fewer than 3 answers behind them.</p>
+          <p className="mt-1 text-sm text-muted">Lowest mastery first, from your actual answers. Mastery fades when you stop practicing a topic. Pale bars have fewer than 3 answers behind them.</p>
           {player.weak_topics.length === 0 ? (
             <p className="mt-6 text-muted">Nothing yet. Your first fight maps where you stand.</p>
           ) : (
@@ -181,6 +182,7 @@ export default function Hub() {
                     <span className="font-medium">{t.name}</span>
                     <span className="ml-2 text-sm text-muted">{t.course}</span>
                     {t.provisional && <span className="chip ml-2">{t.attempts} answered</span>}
+                    {t.fading >= 0.005 && <span className="chip ml-2 border-hp/40 text-hp">fading −{Math.round(t.fading * 100)}%</span>}
                   </div>
                   <Link href="/exam" className="text-sm font-semibold text-violet-soft hover:underline">
                     Train
@@ -195,6 +197,7 @@ export default function Hub() {
         </div>
 
         <div className="space-y-6">
+          <RaidCard raid={player.raid} />
           <div className="panel p-6">
             <h2 className="h-display text-xl">Continue</h2>
             <ul className="mt-4 space-y-2 text-sm">

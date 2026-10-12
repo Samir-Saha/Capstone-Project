@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import exam
 from .progression import level_for, streaks
 from .store import Store
-from .tutor.knowledge_tracing import MIN_EVIDENCE
 
 
 def summary(store: Store) -> dict[str, Any]:
@@ -17,13 +17,11 @@ def summary(store: Store) -> dict[str, Any]:
     current, best = streaks(days)
     today = store.one("select coalesce(sum(amount), 0) n from xp_events where local_day = (select max(local_day) from xp_events)")
 
-    weak = store.all(
-        "select t.id, t.name, c.name course, c.id course_id, m.p_known, m.attempts from topic_mastery m "
-        "join topics t on t.id = m.topic_id join courses c on c.id = t.course_id where m.attempts > 0 order by m.p_known asc limit 5"
-    )
+    practiced = [r["topic_id"] for r in store.all("select topic_id from topic_mastery where attempts > 0")]
+    weak = sorted(exam.topic_view(store, practiced, with_course=True), key=lambda t: t["mastery"])[:5]
     active_exam = store.one(
         "select s.id, s.boss_name, s.hp_current, c.name course from exam_sessions s join courses c on c.id = s.course_id "
-        "where s.status = 'active' order by s.started_at desc limit 1"
+        "where s.status = 'active' and s.kind = 'course' order by s.started_at desc limit 1"
     )
     unsolved = store.one(
         "select slug, max(created_at) last from coding_submissions where slug not in "
@@ -53,13 +51,15 @@ def summary(store: Store) -> dict[str, Any]:
                 "id": w["id"],
                 "name": w["name"],
                 "course": w["course"],
-                "course_id": w["course_id"],
-                "mastery": round(w["p_known"], 3),
+                "course_id": w["id"].split(":")[0],
+                "mastery": w["mastery"],
+                "fading": w["fading"],
                 "attempts": w["attempts"],
-                "provisional": w["attempts"] < MIN_EVIDENCE,
+                "provisional": w["provisional"],
             }
             for w in weak
         ],
+        "raid": exam.raid_preview(store),
         "continue": {
             "exam": active_exam,
             "coding": unsolved,

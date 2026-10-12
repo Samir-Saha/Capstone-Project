@@ -7,7 +7,7 @@ import { useReducedMotion } from "@/lib/motion";
 // generated variant for uploaded courses (colors seeded from the boss name).
 
 export type BossState = "idle" | "hit" | "attack" | "windup" | "defeated" | "victor";
-type Props = { courseId: string; name: string; state?: BossState; className?: string; track?: boolean };
+type Props = { courseId: string; name: string; state?: BossState; className?: string; track?: boolean; phase?: number };
 type Look = { x: number; y: number };
 
 function hue(name: string) {
@@ -124,6 +124,40 @@ function Kinetor({ look }: { look: Look }) {
   );
 }
 
+function Fading({ look }: { look: Look }) {
+  // The Daily Raid boss: an hourglass wraith whose sand is the knowledge you're losing.
+  return (
+    <svg viewBox="0 0 320 320" className="h-full w-full" aria-hidden>
+      <defs>
+        <linearGradient id="fd-glass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#B9A8FF" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#3FD8E6" stopOpacity="0.25" />
+        </linearGradient>
+        <radialGradient id="fd-eye" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="60%" stopColor="#FFC857" />
+          <stop offset="100%" stopColor="#7A4E0A" />
+        </radialGradient>
+      </defs>
+      <ellipse cx="160" cy="292" rx="70" ry="10" fill="#000" opacity="0.35" />
+      {/* tattered cloak */}
+      <path d="M70 120 Q160 40 250 120 L270 270 Q240 250 220 272 Q195 248 175 274 Q160 252 145 274 Q125 248 100 272 Q80 250 50 270 Z" fill="#1F2440" stroke="#8B6CFF" strokeWidth="2" opacity="0.95" />
+      {/* hourglass */}
+      <path d="M118 96 H202 L166 160 L202 224 H118 L154 160 Z" fill="url(#fd-glass)" stroke="#ECEEFF" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M130 104 H190 L163 150 H157 Z" fill="#FFC857" opacity="0.85" />
+      <path d="M157 170 H163 L186 216 H134 Z" fill="#FFC857" opacity="0.35" />
+      <line x1="160" y1="150" x2="160" y2="214" stroke="#FFC857" strokeWidth="2" strokeDasharray="3 5" />
+      <rect x="108" y="86" width="104" height="12" rx="4" fill="#8B6CFF" />
+      <rect x="108" y="222" width="104" height="12" rx="4" fill="#8B6CFF" />
+      {/* eyes in the hood */}
+      <g style={{ transform: `translate(${look.x * 10}px, ${look.y * 5}px)`, transition: "transform 120ms ease-out" }}>
+        <circle cx="140" cy="66" r="7" fill="url(#fd-eye)" />
+        <circle cx="180" cy="66" r="7" fill="url(#fd-eye)" />
+      </g>
+    </svg>
+  );
+}
+
 function Generated({ name, look }: { name: string; look: Look }) {
   const h = hue(name);
   const a = `hsl(${h} 85% 66%)`;
@@ -149,6 +183,12 @@ function Generated({ name, look }: { name: string; look: Look }) {
   );
 }
 
+const BOSSES: Record<string, (look: Look) => React.ReactNode> = {
+  "calc-1": (look) => <Vexis look={look} />,
+  "phys-kinematics": (look) => <Kinetor look={look} />,
+  "daily-raid": (look) => <Fading look={look} />,
+};
+
 const ANIM: Record<BossState, string> = {
   idle: "animate-float",
   hit: "animate-hit",
@@ -158,7 +198,7 @@ const ANIM: Record<BossState, string> = {
   victor: "animate-loom",
 };
 
-export function BossArt({ courseId, name, state = "idle", className = "", track = false }: Props) {
+export function BossArt({ courseId, name, state = "idle", className = "", track = false, phase = 1 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const [look, setLook] = useState<Look>({ x: 0, y: 0 });
@@ -186,9 +226,14 @@ export function BossArt({ courseId, name, state = "idle", className = "", track 
 
   const still = state === "defeated" ? { x: 0, y: 0.6 } : look;
   return (
-    <div ref={ref} className={`relative ${className}`} role="img" aria-label={`${name}, the boss`}>
+    <div ref={ref} className={`relative ${className}`} role="img" aria-label={`${name}, the boss${phase >= 2 ? ", phase 2" : ""}`}>
+      {phase >= 2 && state !== "defeated" && (
+        <div className="pointer-events-none absolute inset-[8%] animate-breathe rounded-full bg-[radial-gradient(circle,rgba(255,61,102,0.35),transparent_65%)]" />
+      )}
       <div key={state} className={ANIM[state]}>
-        {courseId === "calc-1" ? <Vexis look={still} /> : courseId === "phys-kinematics" ? <Kinetor look={still} /> : <Generated name={name} look={still} />}
+        <div className={phase >= 2 && state !== "defeated" ? "[filter:drop-shadow(0_0_18px_rgba(255,92,122,0.75))_saturate(1.4)]" : ""}>
+          {BOSSES[courseId] ? BOSSES[courseId]!(still) : <Generated name={name} look={still} />}
+        </div>
       </div>
     </div>
   );

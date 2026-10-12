@@ -119,6 +119,10 @@ create table if not exists exam_sessions (
   best_combo integer not null default 0,
   question_target integer not null,
   mastery_start text not null default '{}',
+  kind text not null default 'course',
+  topic_ids text,
+  phase integer not null default 1,
+  raid_day text,
   started_at text not null,
   completed_at text
 );
@@ -141,6 +145,7 @@ create table if not exists exam_questions (
   answer_format text,
   verification text not null,     -- JSON checks
   hint_used integer not null default 0,
+  rematch_of text,
   created_at text not null
 );
 
@@ -156,6 +161,8 @@ create table if not exists exam_attempts (
   p_before real not null,
   p_after real not null,
   xp integer not null default 0,
+  steps text,
+  hearts_lost integer not null default 0,
   created_at text not null
 );
 
@@ -226,6 +233,13 @@ create table if not exists interview_turns (
 # database is missing, so nobody has to delete their progress to upgrade.
 ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("coding_submissions", "scale", "text"),
+    ("exam_sessions", "kind", "text not null default 'course'"),
+    ("exam_sessions", "topic_ids", "text"),
+    ("exam_sessions", "phase", "integer not null default 1"),
+    ("exam_sessions", "raid_day", "text"),
+    ("exam_questions", "rematch_of", "text"),
+    ("exam_attempts", "steps", "text"),
+    ("exam_attempts", "hearts_lost", "integer not null default 0"),
 ]
 
 

@@ -19,7 +19,7 @@ export function SegmentedHp({
 }: {
   topics: Topic[];
   hp: number;
-  victoryHp?: number;
+  victoryHp?: number | null;
   activeTopicId?: string | null;
   compact?: boolean;
 }) {
@@ -30,7 +30,7 @@ export function SegmentedHp({
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="font-display text-sm font-semibold text-hp">
           Boss HP
-          {victoryHp !== undefined && <span className="ml-2 font-sans text-xs font-normal text-muted">win at {victoryHp} or less</span>}
+          {victoryHp != null && <span className="ml-2 font-sans text-xs font-normal text-muted">win at {victoryHp} or less</span>}
         </span>
         <span className="font-display text-2xl font-bold tabular-nums text-text">
           <span aria-hidden>{shownHp}</span>

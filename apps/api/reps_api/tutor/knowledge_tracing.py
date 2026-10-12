@@ -134,3 +134,29 @@ class BossPolicy:
             streak_blocked = {recent[-1]}
         candidates = [t for t in topics if t.topic_id not in streak_blocked] or list(topics)
         return min(candidates, key=lambda t: (t.p_known, t.attempts)).topic_id
+
+
+# ----------------------------------------------------------------- forgetting
+#
+# Standard BKT never forgets. Reps adds a documented, tunable extension: above the
+# prior, mastery decays exponentially toward the prior while a topic goes
+# unpractised. Each correct answer slows the decay (spacing effect), so a topic
+# you've nailed many times fades over weeks, one you got right once fades in days.
+# These constants are design choices, not fitted values.
+
+BASE_HALF_LIFE_DAYS = 3.0
+HALF_LIFE_GROWTH = 1.6  # per correct answer, capped below
+MAX_GROWTH_STEPS = 6
+FORGETTING_VERSION = "decay-1.0"
+
+
+def half_life_days(correct: int) -> float:
+    return BASE_HALF_LIFE_DAYS * HALF_LIFE_GROWTH ** min(max(correct, 0), MAX_GROWTH_STEPS)
+
+
+def decayed(p_known: float, days_since: float, correct: int, params: BKTParams = DEFAULT_PARAMS) -> float:
+    """Mastery after `days_since` days without practice. Never drops below the prior,
+    and never raises a below-prior estimate (forgetting can't make you better)."""
+    if days_since <= 0 or p_known <= params.p_init:
+        return p_known
+    return params.p_init + (p_known - params.p_init) * 0.5 ** (days_since / half_life_days(correct))

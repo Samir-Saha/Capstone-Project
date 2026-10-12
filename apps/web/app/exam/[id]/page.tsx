@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, Lightbulb, ShieldCheck, Zap } from "lucide-react";
+import { Flag, Lightbulb, ListOrdered, Repeat, ShieldCheck, Skull, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import { BossArt, type BossState } from "@/components/BossArt";
 import { HurtVignette, ImpactBurst } from "@/components/Effects";
 import { DifficultyPips, Hearts, SegmentedHp } from "@/components/Hud";
 import { TeX } from "@/components/Math";
+import { StepsEditor, StepsView } from "@/components/Steps";
 import { ErrorNote, Spinner } from "@/components/ui";
 import { api, notifyProgress, type AnswerFeedback, type Fight } from "@/lib/api";
 import { play } from "@/lib/sound";
@@ -16,12 +17,26 @@ type Graded = Extract<AnswerFeedback, { status: "graded" }>;
 type Floater = { id: number; text: string; tone: "dmg" | "heal" | "note" };
 type Burst = { id: number; big: boolean };
 
-const OUTCOME: Record<string, { title: string; body: string; tone: string }> = {
-  victory: { title: "Boss defeated", body: "Average mastery is at 75% or better across every topic.", tone: "text-heal" },
-  knocked_out: { title: "Knocked out", body: "Out of hearts. Your progress still counts: mastery only moves with real answers.", tone: "text-hp" },
-  out_of_questions: { title: "Round over", body: "That was all 15 questions. The boss keeps the HP you took off it.", tone: "text-xp" },
-  retreated: { title: "You retreated", body: "Answers you gave still count toward mastery.", tone: "text-muted" },
-};
+const WORK_KEY = "reps.show-work";
+
+function outcomeFor(f: Fight): { title: string; body: string; tone: string } | null {
+  if (!f.outcome) return null;
+  const raid = f.kind === "raid";
+  switch (f.outcome) {
+    case "victory":
+      return raid
+        ? { title: "Raid cleared", body: "You held on to what was fading. A new raid opens tomorrow.", tone: "text-heal" }
+        : { title: "Boss defeated", body: "Average mastery is at 75% or better across every topic.", tone: "text-heal" };
+    case "knocked_out":
+      return { title: "Knocked out", body: "Out of hearts. Your progress still counts: mastery only moves with real answers.", tone: "text-hp" };
+    case "out_of_questions":
+      return raid
+        ? { title: "Raid over", body: "Fewer than 3 of 5 right. Those topics will be back tomorrow.", tone: "text-xp" }
+        : { title: "Round over", body: `That was all ${f.question_target} questions. The boss keeps the HP you took off it.`, tone: "text-xp" };
+    default:
+      return { title: "You retreated", body: "Answers you gave still count toward mastery.", tone: "text-muted" };
+  }
+}
 
 export default function FightPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +57,9 @@ export default function FightPage() {
   const [shake, setShake] = useState(false);
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [confirmRetreat, setConfirmRetreat] = useState(false);
+  const [showWork, setShowWork] = useState(false);
+  const [work, setWork] = useState("");
+  const [phaseBanner, setPhaseBanner] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -82,6 +100,23 @@ export default function FightPage() {
 
   const q = fight?.current_question ?? null;
 
+  useEffect(() => {
+    try {
+      setShowWork(localStorage.getItem(WORK_KEY) === "on");
+    } catch {
+      /* default off */
+    }
+  }, []);
+  const toggleWork = () => {
+    const next = !showWork;
+    setShowWork(next);
+    try {
+      localStorage.setItem(WORK_KEY, next ? "on" : "off");
+    } catch {
+      /* not remembered */
+    }
+  };
+
   // Live preview of how the answer was read.
   useEffect(() => {
     if (!answer.trim()) {
@@ -118,11 +153,12 @@ export default function FightPage() {
   };
 
   const strike = async () => {
-    if (!q || !answer.trim() || grading) return;
+    const steps = showWork ? work.split("\n").filter((l) => l.trim()) : undefined;
+    if (!q || grading || (showWork ? !steps?.length : !answer.trim())) return;
     setGrading(true);
     setParseNote(null);
     try {
-      const fb = await api.answer(id, q.id, answer);
+      const fb = await api.answer(id, q.id, showWork ? "" : answer, steps);
       if (fb.status === "unparseable") {
         setParseNote(fb.message);
         return;
@@ -146,6 +182,13 @@ export default function FightPage() {
         setTimeout(() => setShake(false), 350);
         setTimeout(() => setHurt(null), 700);
       }
+      if (fb.phase_change) {
+        setTimeout(() => {
+          setPhaseBanner(Date.now());
+          play("defeat");
+        }, 500);
+        setTimeout(() => setPhaseBanner(null), 3200);
+      }
       setTimeout(() => setBossState(won ? "defeated" : fb.session.outcome === "knocked_out" ? "victor" : "idle"), 480);
       if (fb.session.status !== "active") setTimeout(() => play(fb.session.outcome === "victory" ? "victory" : "defeat"), 600);
       notifyProgress(fb.xp);
@@ -168,6 +211,7 @@ export default function FightPage() {
     setFight((f) => (f ? { ...f, current_question: null } : f));
     setFeedback(null);
     setAnswer("");
+    setWork("");
     setHint(null);
     setPreview({ latex: null, error: null });
     await summon();
@@ -191,7 +235,8 @@ export default function FightPage() {
   if (!fight) return <Spinner label="Entering the arena" />;
 
   const over = fight.status !== "active";
-  const outcome = fight.outcome ? OUTCOME[fight.outcome] : null;
+  const outcome = outcomeFor(fight);
+  const abilityTopic = !over && q && fight.ability && q.topic_id === fight.ability.topic_id;
 
   return (
     <div className={`grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] ${shake ? "animate-shake" : ""}`}>
@@ -205,7 +250,15 @@ export default function FightPage() {
               {fight.course_name}
               {fight.course_code ? ` (${fight.course_code})` : ""}
             </p>
-            <h1 className="h-display text-2xl">{fight.boss_name}</h1>
+            <h1 className="h-display flex items-center gap-2 text-2xl">
+              {fight.boss_name}
+              {fight.phase >= 2 && !over && <span className="chip border-hp/60 bg-hp/15 text-hp">Phase 2</span>}
+            </h1>
+            {fight.ability && (
+              <p className={`mt-1 text-xs ${abilityTopic ? "text-hp" : "text-muted"}`} title={fight.ability.text}>
+                <span className="font-semibold">{fight.ability.name}:</span> {fight.ability.text}
+              </p>
+            )}
           </div>
           {!over &&
             (confirmRetreat ? (
@@ -233,21 +286,30 @@ export default function FightPage() {
             name={fight.boss_name}
             state={over && bossState === "idle" ? (fight.outcome === "victory" ? "defeated" : fight.outcome === "knocked_out" ? "victor" : "idle") : bossState}
             track={!over}
+            phase={fight.phase}
             className="h-full w-full"
           />
           {bursts.map((b) => (
             <ImpactBurst key={b.id} big={b.big} count={b.big ? 26 : 12} spread={b.big ? 190 : 120} color={b.big ? "#5BE3A1" : "#FFC857"} />
           ))}
+          {phaseBanner !== null && (
+            <div key={phaseBanner} className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 animate-pop text-center" role="status">
+              <div className="mx-auto inline-block rounded-panel border border-hp/60 bg-ink/90 px-5 py-3 shadow-[0_0_40px_-6px_rgba(255,61,102,0.7)]">
+                <div className="font-display text-xl font-bold text-hp">Phase 2</div>
+                <div className="text-sm text-muted">{fight.boss_name} is enraged. Harder questions from here.</div>
+              </div>
+            </div>
+          )}
           {floaters.map((f) => (
-            <span
-              key={f.id}
-              className={`pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 animate-rise font-display text-5xl font-bold drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] ${
-                f.tone === "dmg" ? "text-xp" : f.tone === "heal" ? "whitespace-nowrap text-3xl text-hp" : "top-2/3 whitespace-nowrap text-xl text-muted"
-              }`}
-              aria-hidden
-            >
-              {f.text}
-            </span>
+            <div key={f.id} className={`pointer-events-none absolute inset-x-0 flex justify-center ${f.tone === "note" ? "top-2/3" : "top-1/3"}`} aria-hidden>
+              <span
+                className={`animate-rise whitespace-nowrap font-display font-bold drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] ${
+                  f.tone === "dmg" ? "text-5xl text-xp" : f.tone === "heal" ? "text-2xl text-hp" : "text-xl text-muted"
+                }`}
+              >
+                {f.text}
+              </span>
+            </div>
           ))}
         </div>
         <div className="relative mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
@@ -302,6 +364,16 @@ export default function FightPage() {
           <div key={q.id} className="flex flex-1 animate-enter flex-col">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="chip border-xp/50 text-xp">{q.topic}</span>
+              {q.rematch && (
+                <span className="chip border-violet/60 text-violet-soft" title="You missed this one earlier. Same idea, new numbers.">
+                  <Repeat size={12} aria-hidden /> Rematch
+                </span>
+              )}
+              {abilityTopic && (
+                <span className="chip border-hp/60 text-hp" title={fight.ability?.text}>
+                  <Skull size={12} aria-hidden /> A miss costs 2 hearts
+                </span>
+              )}
               <DifficultyPips level={q.difficulty} />
               <span
                 className="ml-auto inline-flex items-center gap-1.5 text-heal"
@@ -326,8 +398,34 @@ export default function FightPage() {
                   void strike();
                 }}
               >
-                <label htmlFor="answer" className="label">
-                  Your answer <span className="font-normal">({q.answer_format})</span>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-muted">{q.answer_format}</span>
+                  <button
+                    type="button"
+                    onClick={toggleWork}
+                    aria-pressed={showWork}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition ${
+                      showWork ? "border-violet bg-violet/15 text-text" : "border-line text-muted hover:text-text"
+                    }`}
+                  >
+                    <ListOrdered size={14} aria-hidden /> Show your work{showWork ? ": on" : ""}
+                  </button>
+                </div>
+                {showWork ? (
+                  <>
+                    <StepsEditor value={work} onChange={setWork} onSubmit={() => void strike()} disabled={grading} />
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted">Every line gets checked. All correct earns +5 XP.</span>
+                      <button type="submit" className="btn-primary shrink-0 px-6" disabled={!work.trim() || grading}>
+                        {grading ? "Checking" : "Strike"}
+                        <span className="kbd">Ctrl+Enter</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                <label htmlFor="answer" className="sr-only">
+                  Your answer
                 </label>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <input
@@ -355,6 +453,8 @@ export default function FightPage() {
                     <span className="text-muted">Not readable yet: {preview.error}</span>
                   ) : null}
                 </div>
+                  </>
+                )}
                 {parseNote && (
                   <p className="mt-1 text-sm text-xp" role="alert">
                     {parseNote}
@@ -379,9 +479,13 @@ export default function FightPage() {
                   role="status"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className={`h-display text-3xl ${feedback.correct ? "text-heal" : "text-hp"}`}>{feedback.correct ? "Direct hit" : "Blocked"}</p>
+                    <p className={`h-display text-3xl ${feedback.correct ? "text-heal" : "text-hp"}`}>{feedback.correct ? (feedback.rematch ? "Redeemed" : "Direct hit") : "Blocked"}</p>
                     <p className="text-sm text-muted">
-                      {feedback.correct ? `−${feedback.damage} boss HP` : `You lost a heart`}
+                      {feedback.correct
+                        ? `−${feedback.damage} boss HP`
+                        : feedback.hearts_lost > 1
+                          ? `${feedback.ability_triggered ?? "Ability"}: you lost ${feedback.hearts_lost} hearts`
+                          : "You lost a heart"}
                       {feedback.xp > 0 && <span className="ml-3 font-display font-semibold text-xp">+{feedback.xp} XP</span>}
                     </p>
                   </div>
@@ -405,6 +509,14 @@ export default function FightPage() {
                       </span>
                     </dd>
                   </dl>
+                  {feedback.steps && (
+                    <div className="mt-4 border-t border-white/10 pt-3">
+                      <StepsView report={feedback.steps} />
+                    </div>
+                  )}
+                  {!feedback.correct && !feedback.rematch && feedback.session.status === "active" && (
+                    <p className="mt-3 text-xs text-violet-soft">This one will come back later in the fight with new numbers.</p>
+                  )}
                   <p className="mt-4 text-xs text-muted">Graded by {feedback.grading.method}, not by AI.</p>
                 </div>
                 <button ref={nextRef} type="button" className="btn-primary mt-5 w-full py-3" onClick={next}>

@@ -44,7 +44,18 @@ export type Health = {
   integrations: { code_runner: string; code_runner_is_sandbox: boolean; llm: string | null; supabase: boolean };
 };
 
-export type WeakTopic = { id: string; name: string; course: string; course_id: string; mastery: number; attempts: number; provisional: boolean };
+export type WeakTopic = { id: string; name: string; course: string; course_id: string; mastery: number; fading: number; attempts: number; provisional: boolean };
+
+export type RaidPreview = {
+  available: boolean;
+  session_id: string | null;
+  status: string | null;
+  outcome: string | null;
+  topics: (Topic & { score: number })[];
+  length: number;
+  hearts: number;
+  xp: number;
+};
 
 export type Player = {
   name: string;
@@ -63,6 +74,7 @@ export type Player = {
     interview: { id: string; role: string; started_at: string } | null;
   };
   recent_xp: { reason: string; amount: number; created_at: string }[];
+  raid: RaidPreview;
   xp_rules: string;
 };
 
@@ -70,7 +82,11 @@ export type Topic = {
   id: string;
   name: string;
   description: string | null;
+  course?: string | null;
   mastery: number;
+  recorded?: number;
+  fading?: number;
+  half_life_days?: number | null;
   attempts: number;
   correct: number;
   provisional: boolean;
@@ -88,7 +104,20 @@ export type Course = {
   active_session_id: string | null;
   victories: number;
   fights: number;
+  ability: Ability | null;
 };
+
+export type Ability = { name: string; text: string; topic_id: string; topic: string | null };
+
+export type StepLine = {
+  index: number;
+  text: string;
+  latex: string | null;
+  status: "ok" | "error" | "unchecked" | "unreadable";
+  role: "problem" | "intermediate" | "answer" | "computation" | "formula" | "equation" | null;
+  note: string | null;
+};
+export type StepReport = { lines: StepLine[]; first_error: number | null; checked: number; summary: string };
 
 export type Question = {
   id: string;
@@ -100,11 +129,17 @@ export type Question = {
   answer_format: string;
   hint: string | null;
   hint_used: boolean;
+  kind: string;
+  rematch: boolean;
   verification: { status: string; checks: string[] };
 };
 
 export type Fight = {
   id: string;
+  kind: "course" | "raid";
+  phase: number;
+  phase2_hp: number | null;
+  ability: Ability | null;
   course_id: string;
   course_name: string;
   course_code: string | null;
@@ -113,7 +148,7 @@ export type Fight = {
   outcome: "victory" | "knocked_out" | "out_of_questions" | "retreated" | null;
   hp: number;
   hp_start: number;
-  victory_hp: number;
+  victory_hp: number | null;
   hearts: number;
   max_hearts: number;
   combo: number;
@@ -140,6 +175,11 @@ export type AnswerFeedback =
       damage: number;
       mastery_before: number;
       mastery_after: number;
+      hearts_lost: number;
+      rematch: boolean;
+      steps: StepReport | null;
+      phase_change: number | null;
+      ability_triggered: string | null;
       xp: number;
       session: Fight;
     };
@@ -161,6 +201,8 @@ export type FightResults = {
     p_before: number;
     p_after: number;
     xp: number;
+    rematch: boolean;
+    steps: StepReport | null;
   }[];
   xp_earned: number;
   grading: { verified: number; ai_evaluated: number };
@@ -352,7 +394,10 @@ export const api = {
   fight: (id: string) => request<Fight>(`/api/exam/sessions/${id}`),
   nextQuestion: (id: string) => post<Fight>(`/api/exam/sessions/${id}/next`),
   hint: (id: string, questionId: string) => post<{ hint: string }>(`/api/exam/sessions/${id}/hint`, { question_id: questionId }),
-  answer: (id: string, questionId: string, answer: string) => post<AnswerFeedback>(`/api/exam/sessions/${id}/answer`, { question_id: questionId, answer }),
+  answer: (id: string, questionId: string, answer: string, steps?: string[]) =>
+    post<AnswerFeedback>(`/api/exam/sessions/${id}/answer`, { question_id: questionId, answer, steps: steps ?? null }),
+  startRaid: () => post<Fight>("/api/raid"),
+  previewLines: (lines: string[]) => post<{ latex: string | null; error: string | null }[]>("/api/math/preview-lines", { lines }),
   retreat: (id: string) => post<Fight>(`/api/exam/sessions/${id}/retreat`),
   results: (id: string) => request<FightResults>(`/api/exam/sessions/${id}/results`),
   preview: (text: string) => post<{ latex: string | null; error: string | null }>("/api/math/preview", { text }),

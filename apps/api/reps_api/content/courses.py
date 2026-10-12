@@ -33,6 +33,15 @@ class TopicDef(BaseModel):
     description: str
 
 
+class Ability(BaseModel):
+    """A boss ability hits your hearts, never the boss's HP: HP always equals the
+    mastery gap, so abilities change the stakes of a topic, not the scoreboard."""
+
+    name: str
+    topic: str  # topic key
+    text: str
+
+
 class CourseDef(BaseModel):
     id: str
     name: str
@@ -40,6 +49,7 @@ class CourseDef(BaseModel):
     boss_name: str
     topics: list[TopicDef]
     templates: list[QuestionTemplate]
+    ability: Ability | None = None
 
 
 def P(lo: int, hi: int, exclude: list[int] | None = None) -> ParamSpec:
@@ -76,6 +86,7 @@ CALCULUS = CourseDef(
     name="Calculus I",
     code="MATH 151",
     boss_name="Vexis, the Limitless",
+    ability=Ability(name="Limitless Gaze", topic="limits", text="Missing a Limits question costs 2 hearts."),
     topics=[
         TopicDef(key="limits", name="Limits", description="Evaluating limits at a point and at infinity"),
         TopicDef(key="basic_rules", name="Derivative rules", description="Power, sum, and trig derivatives"),
@@ -290,6 +301,7 @@ PHYSICS = CourseDef(
     name="Physics I: Kinematics",
     code="PHYS 203",
     boss_name="Kinetor, the Unstoppable",
+    ability=Ability(name="Momentum", topic="accel", text="Missing a Constant acceleration question costs 2 hearts."),
     topics=[
         TopicDef(key="uniform", name="Uniform motion", description="Constant velocity: distance, speed, time"),
         TopicDef(key="accel", name="Constant acceleration", description="The kinematic equations"),

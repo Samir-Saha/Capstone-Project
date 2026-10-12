@@ -45,6 +45,12 @@ function BossCard({ course }: { course: Course }) {
         <div className="mt-4">
           <SegmentedHp topics={course.topics} hp={course.hp} victoryHp={25} />
         </div>
+        {course.ability && (
+          <p className="mt-3 text-sm text-muted">
+            <span className="font-semibold text-hp">{course.ability.name}.</span> {course.ability.text} Below 50 HP it enters phase 2 and asks harder
+            questions.
+          </p>
+        )}
         <ul className="mt-5 grid gap-x-8 gap-y-2.5 sm:grid-cols-2">
           {course.topics.map((t) => (
             <li key={t.id}>

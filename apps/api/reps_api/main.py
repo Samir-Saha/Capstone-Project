@@ -30,7 +30,7 @@ from .tutor.knowledge_tracing import MODEL_VERSION
 from .verification.coding_engine import CodingProblemSpec, CodingVerification, verify_coding_problem
 from .verification.executors import executor_from_env
 from .verification.math_engine import GradeResult, MathProblemSpec, MathTask, MathVerification, grade_answer, verify_problem
-from .verification.safe_math import DEFAULT_VARIABLES, UnsupportedExpression, parse_math
+from .verification.safe_math import DEFAULT_VARIABLES, UnsupportedExpression, parse_math, to_latex
 from .verification.status import VerificationStatus
 from .verification.timeouts import VerificationTimeout, run_with_timeout
 
@@ -221,12 +221,24 @@ def exam_hint(session_id: str, body: QuestionRef) -> dict[str, Any]:
 
 class ExamAnswer(BaseModel):
     question_id: str
-    answer: str = Field(max_length=300)
+    answer: str = Field(default="", max_length=300)
+    steps: list[str] | None = Field(default=None, max_length=20)
 
 
 @app.post("/api/exam/sessions/{session_id}/answer")
 def exam_answer(session_id: str, body: ExamAnswer) -> dict[str, Any]:
-    return exam.submit_answer(get_store(), session_id, body.question_id, body.answer)
+    steps = [s[:300] for s in body.steps] if body.steps else None
+    return exam.submit_answer(get_store(), session_id, body.question_id, body.answer, steps=steps)
+
+
+@app.get("/api/raid")
+def raid_preview() -> dict[str, Any]:
+    return exam.raid_preview(get_store())
+
+
+@app.post("/api/raid")
+def raid_start() -> dict[str, Any]:
+    return exam.start_raid(get_store())
 
 
 @app.post("/api/exam/sessions/{session_id}/retreat")
@@ -243,10 +255,34 @@ class PreviewIn(BaseModel):
     text: str = Field(max_length=300)
 
 
+class PreviewLines(BaseModel):
+    lines: list[str] = Field(max_length=20)
+
+
+@app.post("/api/math/preview-lines")
+def math_preview_lines(body: PreviewLines) -> list[dict[str, Any]]:
+    """Render each line of shown work as it was read (labels like "d =" kept as text)."""
+    from .verification.steps import _latex, _segments
+
+    out = []
+    for line in body.lines:
+        if not line.strip():
+            out.append({"latex": None, "error": None})
+            continue
+        try:
+            segs, _, label = _segments(line[:300], ("x", "y", "z", "t", "n", "k"))
+            latex = _latex(segs)
+            if label and latex:
+                latex = r"\text{" + re.sub(r"[{}\\]", "", label) + "} = " + latex
+            out.append({"latex": latex, "error": None})
+        except UnsupportedExpression as err:
+            out.append({"latex": None, "error": str(err)})
+    return out
+
+
 @app.post("/api/math/preview")
 def math_preview(body: PreviewIn) -> dict[str, Any]:
     """Show the student how their typed answer was read, before they submit."""
-    import sympy as sp
 
     if not body.text.strip():
         return {"latex": None, "error": None}
@@ -255,7 +291,8 @@ def math_preview(body: PreviewIn) -> dict[str, Any]:
         rendered = []
         for p in parts[:6]:
             p = re.sub(r"^\s*x\s*=", "", p)
-            rendered.append(sp.latex(parse_math(p, DEFAULT_VARIABLES)))
+            parse_math(p, DEFAULT_VARIABLES)  # must be valid, not just renderable
+            rendered.append(to_latex(p, DEFAULT_VARIABLES))
         return {"latex": ",\\; ".join(rendered), "error": None}
     except UnsupportedExpression as err:
         return {"latex": None, "error": str(err)}

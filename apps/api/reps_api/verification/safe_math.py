@@ -138,3 +138,25 @@ def parse_math(text: str, variables: tuple[str, ...] = DEFAULT_VARIABLES) -> sp.
 def symbol(name: str) -> sp.Symbol:
     """The symbol parse_math creates for a variable name, so results compare equal."""
     return sp.Symbol(name, real=True)
+
+
+def to_latex(text: str, variables: tuple[str, ...] = DEFAULT_VARIABLES) -> str:
+    """Render what the student typed without simplifying it (2*(18) stays 2 · 18).
+    Same safety checks as parse_math."""
+    _check_text(text, variables)
+    local_dict: dict[str, object] = {**FUNCTIONS, **CONSTANTS}
+    local_dict.update({v: sp.Symbol(v, real=True) for v in variables})
+    transformations = standard_transformations + (implicit_multiplication, convert_xor)
+    sides = []
+    for side in text.split("="):
+        if not side.strip():
+            continue
+        try:
+            expr = parse_expr(side, local_dict=local_dict, global_dict=dict(_PARSER_GLOBALS), transformations=transformations, evaluate=False)
+        except Exception as err:
+            raise UnsupportedExpression(f"could not parse: {err.__class__.__name__}") from err
+        _check_tree(expr)
+        sides.append(sp.latex(expr))
+    if not sides:
+        raise UnsupportedExpression("empty expression")
+    return " = ".join(sides)

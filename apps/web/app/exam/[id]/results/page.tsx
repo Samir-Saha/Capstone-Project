@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BossArt } from "@/components/BossArt";
 import { SegmentedHp } from "@/components/Hud";
 import { TeX } from "@/components/Math";
+import { StepsView } from "@/components/Steps";
 import { ErrorNote, Spinner, Stat } from "@/components/ui";
 import { api, type FightResults } from "@/lib/api";
 
@@ -65,7 +66,11 @@ export default function Results() {
         <div>
           <p className="text-sm text-muted">{s.course_name}</p>
           <h1 className={`h-display text-4xl ${s.outcome === "victory" ? "text-heal" : ""}`}>
-            {TITLE[s.outcome ?? ""] ?? "Fight over"}: {s.boss_name}
+            {s.kind === "raid"
+              ? s.outcome === "victory"
+                ? "Raid cleared"
+                : "Raid over"
+              : `${TITLE[s.outcome ?? ""] ?? "Fight over"}: ${s.boss_name}`}
           </h1>
           <div className="mt-4 max-w-xl">
             <SegmentedHp topics={s.topics} hp={s.hp} victoryHp={s.victory_hp} compact />
@@ -162,12 +167,18 @@ export default function Results() {
                   <span className="text-muted">You: </span>
                   <span className="font-mono">{a.answer}</span>
                   {a.hint_used && <span className="chip ml-2">hint</span>}
+                  {a.rematch && <span className="chip ml-2 border-violet/50 text-violet-soft">rematch</span>}
                 </p>
                 <p className="mt-1">
                   <span className="text-muted">Answer: </span>
                   {a.answer_latex ? <TeX tex={a.answer_latex} /> : "—"}
                 </p>
                 {!a.correct && a.method && <p className="mt-1 text-muted">{a.method}</p>}
+                {a.steps && a.steps.lines.length > 0 && (
+                  <div className="mt-2">
+                    <StepsView report={a.steps} compact />
+                  </div>
+                )}
               </div>
             </li>
           ))}
