@@ -182,3 +182,19 @@ def test_achievements_unlock_once_from_real_events(store):
     again = player.summary(store)
     assert again["new_achievements"] == [] and again["xp"] == xp_before
     assert store.one("select count(*) n from xp_events where reason = 'achievement'")["n"] == len(keys)
+
+
+def test_progress_summary_reflects_play(store):
+    from reps_api import progress
+
+    rng = random.Random(5)
+    s = exam.start_session(store, "calc-1")
+    for _ in range(3):
+        q = _ask(store, s["id"], rng)
+        exam.submit_answer(store, s["id"], q["id"], _key(store, q["id"]), use_pool=False)
+    p = progress.summary(store)
+    assert p["totals"]["answered"] == 3 and p["totals"]["accuracy"] == 1.0
+    hist = next(h for h in p["mastery_history"] if h["course_id"] == "calc-1")
+    assert len(hist["events"]) == 3 and all(e["after"] > e["before"] for e in hist["events"])
+    assert len(p["xp_by_day"]) == 14 and p["xp_by_day"][-1]["xp"] > 0
+    assert p["verification"]["math_template"]["verified"] >= 3

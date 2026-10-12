@@ -46,6 +46,22 @@ export type Health = {
 
 export type WeakTopic = { id: string; name: string; course: string; course_id: string; mastery: number; fading: number; attempts: number; provisional: boolean };
 
+export type ProgressData = {
+  totals: { answered: number; correct: number; accuracy: number | null; fights: number; raids: number; problems_solved: number; interviews: number; clean_work: number };
+  mastery_history: {
+    course_id: string;
+    course: string;
+    topics: { id: string; name: string }[];
+    events: { i: number; topic_id: string; before: number; after: number; correct: boolean; at: string }[];
+    now: Record<string, number>;
+  }[];
+  xp_by_day: { day: string; xp: number }[];
+  accuracy_by_course: { course: string; answered: number; correct: number }[];
+  verification: Record<string, Record<string, number>>;
+  rejection_reasons: { subject: string; reason: string; n: number }[];
+  achievements: AchievementItem[];
+};
+
 export type AchievementItem = { key: string; name: string; text: string; icon: string; xp: number; unlocked_at: string | null };
 
 export type RaidPreview = {
@@ -387,6 +403,7 @@ export const api = {
   rename: (name: string) => post<Player>("/api/player/name", { name }),
 
   achievements: () => request<AchievementItem[]>("/api/achievements"),
+  progress: () => request<ProgressData>("/api/progress"),
   markSeen: (keys: string[]) => post<{ ok: boolean }>("/api/achievements/seen", { keys }),
   courses: () => request<Course[]>("/api/exam/courses"),
   uploadCourse: (file: File, name: string) => {

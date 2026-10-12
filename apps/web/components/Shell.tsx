@@ -1,6 +1,6 @@
 "use client";
 
-import { Code2, Flame, Home, Mic, Swords, Volume2, VolumeX } from "lucide-react";
+import { Code2, Flame, Home, LineChart, Mic, Swords, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/exam", label: "Boss fights", icon: Swords, match: (p: string) => p.startsWith("/exam") },
   { href: "/arena", label: "Arena", icon: Code2, match: (p: string) => p.startsWith("/arena") },
   { href: "/interview", label: "Gauntlet", icon: Mic, match: (p: string) => p.startsWith("/interview") },
+  { href: "/progress", label: "Progress", icon: LineChart, match: (p: string) => p.startsWith("/progress") },
 ];
 
 function Wordmark() {
@@ -26,6 +27,8 @@ function Wordmark() {
     </Link>
   );
 }
+
+const MAX_TOASTS = 2;
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -183,7 +186,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="pointer-events-none fixed bottom-20 right-4 z-50 flex w-[320px] flex-col gap-3 md:bottom-6" role="status" aria-live="polite">
-        {toasts.map((a) => (
+        {toasts.slice(0, MAX_TOASTS).map((a) => (
           <div key={a.key} className="pointer-events-auto flex animate-pop items-start gap-3 rounded-panel border border-xp/50 bg-surface/95 p-4 shadow-[0_10px_40px_-10px_rgba(255,200,87,0.5)]">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-xp/20 text-xp ring-1 ring-xp/40">
               <AchievementIcon name={a.icon} />
@@ -195,6 +198,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         ))}
+        {toasts.length > MAX_TOASTS && (
+          <Link
+            href="/progress"
+            className="pointer-events-auto animate-pop rounded-panel border border-xp/50 bg-surface/95 px-4 py-3 text-sm shadow-[0_10px_40px_-10px_rgba(255,200,87,0.5)] hover:bg-raised"
+          >
+            <span className="font-display font-semibold text-xp">+{toasts.length - MAX_TOASTS} more achievements.</span>{" "}
+            <span className="text-muted">See them on Progress.</span>
+          </Link>
+        )}
       </div>
 
       {levelUp !== null && (
