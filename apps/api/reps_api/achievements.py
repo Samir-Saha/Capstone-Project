@@ -96,6 +96,7 @@ ACHIEVEMENTS: list[Achievement] = [
     Achievement("clean_5", "Show-off", "Turn in 5 answers with every line of work correct.", "ListChecks", _xp("clean_work", 5)),
     Achievement("raid_1", "Raider", "Clear a Daily Raid.", "Hourglass", _xp("raid_cleared")),
     Achievement("raid_5", "Nothing fades", "Clear 5 Daily Raids.", "Shield", _xp("raid_cleared", 5)),
+    Achievement("party_1", "Party up", "Beat a boss in a party raid.", "Users", _xp("party_cleared")),
     Achievement("streak_3", "Warming up", "Practice 3 days in a row.", "Flame", lambda s: _best_streak(s) >= 3),
     Achievement("streak_7", "Week of reps", "Practice 7 days in a row.", "Flame", lambda s: _best_streak(s) >= 7),
     Achievement(

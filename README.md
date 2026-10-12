@@ -30,17 +30,38 @@ Optional: copy `.env.example` to `.env` and set `LLM_API_KEY` and `LLM_MODEL` to
 - **Mastery** is a Bayesian Knowledge Tracing estimate per topic, updated after every graded answer and kept between fights.
 - **Win** by getting the boss to 25 HP or less (75% average mastery). **Lose** if your 5 hearts run out. A fight is at most 15 questions.
 - **Targeting:** the boss asks every topic once, then mostly attacks your weakest topic, but never the same one more than twice in a row. Question difficulty follows your mastery.
-- **XP** comes only from confirmed events (verified correct answers, accepted solutions, finished sessions) and each event pays once. XP is motivation, not a grade.
+- **Phase 2** starts when the boss drops to 50 HP: questions get one step harder. Each built-in boss also has an ability (a miss on its signature topic costs 2 hearts).
+- **Rematch:** a question you miss comes back two questions later with new numbers.
+- **Show your work:** turn it on and type one step per line. Every line is checked, and the first wrong line is flagged with what went wrong (sign slip, dropped factor, lost solution).
+- **Forgetting:** mastery fades between sessions on a half-life that grows each time you get a topic right. The **Daily Raid** is 5 questions on whatever is fading most, 3 hearts, cleared with 3 right.
+- **XP** comes only from confirmed events (verified correct answers, accepted solutions, finished sessions) and each event pays once. XP is motivation, not a grade. 20 achievements sit on top of it.
+
+### Arena speed tiers
+
+An accepted solution is also timed on an input 100 to 1,000 times larger, generated inside the sandbox. It clears the speed tier if it runs within 20× the reference solution's time on the same machine, which separates an O(n log n) answer from an O(n²) one.
+
+### Party raids
+
+Up to 8 players on the same Wi-Fi fight one boss over a WebSocket. The host opens a room and gets a four-letter code; friends open the link the lobby shows (or type the code on the Party page). Everyone gets their own verified questions, and every correct answer from anyone hits one shared HP bar (20 + 60 per player). Damage is 8, 11 or 14 by difficulty plus a streak bonus, everyone has 3 hearts, a 3-answer streak revives a downed teammate, and the clock runs 6 minutes. Answers are graded on the server, never trusted from the browser. In local mode the host's answers count toward mastery and XP; guests play for the leaderboard.
+
+![Party raid](docs/screenshots/15-party-raid.png)
+
+### Progress
+
+Mastery over time for every topic, XP by day, accuracy by course, the verification record (how many generated questions and problems were checked, and how many were thrown out and why), and the achievements grid.
+
+![Mastery over time](docs/screenshots/17-progress-mastery.png)
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  browser[Next.js app] -->|/api| api[FastAPI]
+  browser[Next.js app] -->|/api, WebSocket| api[FastAPI]
   api --> store[(SQLite, local mode)]
   api --> pool[Verification workers<br/>SymPy + mpmath]
   api --> runner[Code runner<br/>local or Judge0]
   api --> bkt[Knowledge tracing]
+  api --> rooms[Party rooms<br/>in memory]
   api -.optional.-> llm[LLM API]
   browser --> mic[Mic + Web Audio<br/>Speech API]
 ```
@@ -56,6 +77,7 @@ The hosted version swaps SQLite for Supabase: the schema and row level security 
 | Answer-key verification, differential testing, code execution | Algorithm + external API | `reps_api/verification` |
 | Bayesian Knowledge Tracing and the boss policy | Machine learning | `reps_api/tutor`, `eval/assistments_bkt.py` |
 | Live voice: transcript, audio-level pause detection, spoken questions | Real-time | `apps/web/lib/voice.ts` |
+| Party raids: shared boss state pushed to every player over WebSockets | Real-time | `reps_api/party.py`, `apps/web/lib/party.ts` |
 | Course generation jobs with persisted progress | Background jobs | `reps_api/generation.py` |
 
 ## Design tools
@@ -65,10 +87,11 @@ The hosted version swaps SQLite for Supabase: the schema and row level security 
 ## Tests
 
 ```bash
-cd apps/api && pytest -q                                  # 116 backend tests
+cd apps/api && pytest -q                                  # 142 backend tests
 python eval/assistments_bkt.py --synthetic                # BKT evaluation pipeline self-check
 cd ../web && npm run typecheck && npm run build
 REPS_DB_PATH=../api/data/reps.db python e2e/playthrough.py   # browser playthrough of all three modes
+python e2e/party.py                                        # two-player party raid (stop the API first; this runs its own)
 ```
 
 The database tests run the Supabase migration on plain Postgres with row level security checks (see `.github/workflows/ci.yml`).
@@ -81,8 +104,9 @@ The database tests run the Supabase migration on plain Postgres with row level s
 - **Built-in courses** cover Calculus I and kinematics. Your own courses need an AI key, and only computational questions are generated so far.
 - **Resume claims** are found with simple rules (bullets and numbers), not AI.
 - **BKT parameters** are defaults; the ASSISTments evaluation hasn't been run on real data yet.
-- **Single player, no login** in local mode. Supabase auth arrives with the hosted version.
+- **No login** in local mode, so everything is saved for one person: the person running Reps. Party raid guests don't get saved progress, and party rooms live in memory, so restarting the API ends any open raid.
+- **Party raids need port 3000 reachable** on the host's network. Windows may ask to allow Node.js through the firewall the first time; allow it on private networks. School and public Wi-Fi often block device-to-device traffic, so a phone hotspot is the fallback.
 
 ## Next
 
-Phone layout polish, Supabase auth and hosting, Judge0, conceptual (non-computational) questions with rubric grading, more Arena problems and languages.
+Supabase login with per-user progress (party raid guests keep their own XP), hosting (Vercel for the web app, Render for the API), Judge0, conceptual questions with rubric grading, more Arena problems and languages.

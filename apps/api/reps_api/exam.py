@@ -619,6 +619,25 @@ def submit_answer(store: Store, session_id: str, question_id: str, answer: str, 
     return out
 
 
+def record_practice(store: Store, topic_id: str, correct: bool, difficulty: int) -> tuple[float, float]:
+    """Update mastery for an answer graded outside a fight (party raids). Returns (before, after)."""
+    before = _mastery(store, [topic_id])[0]
+    after = before.record(correct)
+    with store.tx() as db:
+        db.execute(
+            "insert into topic_mastery (topic_id, p_known, attempts, correct, model_version, updated_at) values (?, ?, ?, ?, ?, ?) "
+            "on conflict (topic_id) do update set p_known = excluded.p_known, attempts = excluded.attempts, correct = excluded.correct, "
+            "model_version = excluded.model_version, updated_at = excluded.updated_at",
+            (after.topic_id, after.p_known, after.attempts, after.correct, f"{MODEL_VERSION}+{FORGETTING_VERSION}", now_iso()),
+        )
+        db.execute(
+            "insert into mastery_events (id, topic_id, attempt_id, p_before, p_after, correct, difficulty, model_version, created_at) "
+            "values (?, ?, null, ?, ?, ?, ?, ?, ?)",
+            (new_id(), topic_id, before.p_known, after.p_known, int(correct), difficulty, MODEL_VERSION, now_iso()),
+        )
+    return before.p_known, after.p_known
+
+
 def _finish(store: Store, session_id: str, outcome: str) -> int:
     s = _session(store, session_id)
     store.run(

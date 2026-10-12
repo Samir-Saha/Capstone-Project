@@ -25,6 +25,9 @@ XP_RULES: dict[str, int] = {
     "rematch_redeemed": 5,  # got right a question you'd missed earlier
     "clean_work": 5,  # show-your-work with every checked line correct
     "raid_cleared": 40,  # once per day
+    "party_hit": 10,  # correct answer in a party raid
+    "party_finished": 15,
+    "party_cleared": 40,
     "interview_answer": 10,
     "interview_finished": 30,
 }

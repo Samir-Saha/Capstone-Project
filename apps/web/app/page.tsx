@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Code2, Mic, Pencil, Play, Swords } from "lucide-react";
+import { Check, Code2, Mic, Pencil, Play, Swords, Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BossArt } from "@/components/BossArt";
@@ -198,6 +198,15 @@ export default function Hub() {
 
         <div className="space-y-6">
           <RaidCard raid={player.raid} />
+          <Link href="/party" className="panel group flex items-center gap-4 p-5 transition hover:border-cyan/60">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan/15 text-cyan ring-1 ring-cyan/40">
+              <Users size={22} aria-hidden />
+            </span>
+            <span className="min-w-0">
+              <span className="h-display block text-lg">Party raid</span>
+              <span className="block text-sm text-muted">One boss, shared HP, up to 8 friends on your Wi-Fi.</span>
+            </span>
+          </Link>
           <div className="panel p-6">
             <h2 className="h-display text-xl">Continue</h2>
             <ul className="mt-4 space-y-2 text-sm">

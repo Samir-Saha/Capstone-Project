@@ -397,6 +397,62 @@ export type AudioMetrics = { duration_s: number; speaking_s: number; pauses_ms: 
 
 // ---------------------------------------------------------------- calls
 
+// ---------------------------------------------------------------- party raids
+
+export type PartySeat = { code: string; player_id: string; token: string };
+export type PartyPreview = { code: string; course_id: string; course_name: string; boss_name: string; status: PartyStatus; players: number; max_players: number };
+export type PartyStatus = "lobby" | "starting" | "active" | "over";
+export type PartyPlayer = {
+  id: string;
+  name: string;
+  is_host: boolean;
+  hearts: number;
+  damage: number;
+  answered: number;
+  correct: number;
+  combo: number;
+  best_combo: number;
+  down: boolean;
+  connected: boolean;
+};
+export type PartyQuestion = { id: string; topic_id: string; topic: string; difficulty: number; prompt: string; latex: string | null; answer_format: string; checks: string[] };
+export type PartyEvent = { id: string; kind: "join" | "leave" | "host" | "start" | "hit" | "miss" | "down" | "revive" | "end" | "lobby"; text: string; at: number; player_id?: string; damage?: number };
+export type PartyRoom = {
+  code: string;
+  course_id: string;
+  course_name: string;
+  boss_name: string;
+  topics: { id: string; name: string }[];
+  status: PartyStatus;
+  outcome: "victory" | "wiped" | "timeout" | null;
+  hp: number;
+  hp_start: number;
+  duration_s: number;
+  ends_at: number | null;
+  server_now: number;
+  max_players: number;
+  max_hearts: number;
+  players: PartyPlayer[];
+  feed: PartyEvent[];
+  rules: { damage: Record<string, number>; combo_step: number; combo_cap: number; revive_every: number; hp_per_player: number };
+  you?: { id: string; name: string; is_host: boolean; counts: boolean; hearts: number; xp: number; busy: boolean; question: PartyQuestion | null };
+};
+export type PartyResult = {
+  type: "result";
+  question_id: string;
+  topic: string;
+  correct: boolean;
+  damage: number;
+  hearts: number;
+  your_answer: string;
+  answer: string;
+  answer_latex: string | null;
+  method: string | null;
+  graded_by: string;
+  xp: number;
+  mastery: { before: number; after: number } | null;
+};
+
 export const api = {
   health: () => request<Health>("/health"),
   player: () => request<Player>("/api/player"),
@@ -446,6 +502,11 @@ export const api = {
   ) => post<{ turn: Turn; follow_up_added: string | null; session: InterviewState; xp: number }>(`/api/interview/sessions/${id}/answer`, body),
   finishInterview: (id: string) => post<InterviewReport>(`/api/interview/sessions/${id}/finish`),
   interviewReport: (id: string) => request<InterviewReport>(`/api/interview/sessions/${id}/report`),
+
+  partyCreate: (courseId: string, name: string) => post<PartySeat>("/api/party", { course_id: courseId, name }),
+  partyJoin: (code: string, name: string) => post<PartySeat>(`/api/party/${encodeURIComponent(code)}/join`, { name }),
+  partyPreview: (code: string) => request<PartyPreview>(`/api/party/${encodeURIComponent(code)}`),
+  partyNetwork: () => request<{ addresses: string[] }>("/api/party/network"),
 };
 
 /** Tell the HUD to refresh XP/level after something that can award XP. */

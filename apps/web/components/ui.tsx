@@ -50,6 +50,14 @@ export const XP_REASON: Record<string, string> = {
   coding_accepted_hard: "Solved a hard problem",
   interview_answer: "Interview answer",
   interview_finished: "Interview finished",
+  party_hit: "Party raid hit",
+  party_finished: "Party raid finished",
+  party_cleared: "Party raid cleared",
+  raid_cleared: "Daily Raid cleared",
+  rematch_redeemed: "Rematch redeemed",
+  clean_work: "Every line of work correct",
+  coding_fast: "Speed tier cleared",
+  achievement: "Achievement",
 };
 
 export function timeAgo(iso: string) {

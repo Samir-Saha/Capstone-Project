@@ -1,6 +1,6 @@
 "use client";
 
-import { Code2, Flame, Home, LineChart, Mic, Swords, Volume2, VolumeX } from "lucide-react";
+import { Code2, Flame, Home, LineChart, Mic, Swords, Users, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { play, setSoundEnabled, soundEnabled } from "@/lib/sound";
 const NAV = [
   { href: "/", label: "Hub", icon: Home, match: (p: string) => p === "/" },
   { href: "/exam", label: "Boss fights", icon: Swords, match: (p: string) => p.startsWith("/exam") },
+  { href: "/party", label: "Party", icon: Users, match: (p: string) => p.startsWith("/party") },
   { href: "/arena", label: "Arena", icon: Code2, match: (p: string) => p.startsWith("/arena") },
   { href: "/interview", label: "Gauntlet", icon: Mic, match: (p: string) => p.startsWith("/interview") },
   { href: "/progress", label: "Progress", icon: LineChart, match: (p: string) => p.startsWith("/progress") },

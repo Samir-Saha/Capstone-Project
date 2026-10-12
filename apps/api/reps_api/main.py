@@ -17,12 +17,12 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import achievements, arena, exam, generation, interview, player, progress
+from . import achievements, arena, exam, generation, interview, party, player, progress
 from .ingest.pdf import MAX_BYTES, ExtractionError, extract_pdf
 from .llm import llm_from_env
 from .store import get_store
@@ -77,6 +77,7 @@ async def request_id(request: Request, call_next):
 @app.exception_handler(exam.ExamError)
 @app.exception_handler(arena.ArenaError)
 @app.exception_handler(interview.InterviewError)
+@app.exception_handler(party.PartyError)
 async def domain_error(request: Request, exc: Exception):
     return JSONResponse(status_code=exc.status, content={"detail": exc.message})  # type: ignore[attr-defined]
 
@@ -260,6 +261,64 @@ def raid_preview() -> dict[str, Any]:
 @app.post("/api/raid")
 def raid_start() -> dict[str, Any]:
     return exam.start_raid(get_store())
+
+
+# ---------------------------------------------------------------- party raids
+# Async routes: rooms live in the event loop, so every change to them happens there.
+
+
+class PartyCreate(BaseModel):
+    course_id: str
+    name: str = Field(min_length=1, max_length=40)
+
+
+class PartyJoin(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+
+@app.post("/api/party")
+async def party_create(body: PartyCreate) -> dict[str, Any]:
+    store = get_store()
+    # Local mode: the creator is the person running Reps, so their answers count here.
+    return party.HUB.create(store, body.course_id, body.name, player_store=store)
+
+
+@app.get("/api/party/network")
+async def party_network() -> dict[str, Any]:
+    return {"addresses": party.lan_addresses()}
+
+
+@app.get("/api/party/{code}")
+async def party_preview(code: str) -> dict[str, Any]:
+    return party.HUB.preview(code)
+
+
+@app.post("/api/party/{code}/join")
+async def party_join(code: str, body: PartyJoin) -> dict[str, Any]:
+    return party.HUB.join(code, body.name, player_store=None)
+
+
+@app.websocket("/api/party/{code}/ws")
+async def party_socket(ws: WebSocket, code: str, token: str = "") -> None:
+    try:
+        room = party.HUB.room(code)
+        member = party.HUB.player_for(room, token)
+    except party.PartyError as exc:
+        await ws.accept()
+        await ws.send_json({"type": "error", "fatal": True, "message": exc.message})
+        await ws.close(code=4404 if exc.status == 404 else 4403)
+        return
+    await ws.accept()
+    await party.HUB.connect(room, member, ws)
+    try:
+        while True:
+            message = await ws.receive_json()
+            if isinstance(message, dict):
+                await party.HUB.handle(room, member, message)
+    except (WebSocketDisconnect, RuntimeError, ValueError):
+        pass
+    finally:
+        await party.HUB.disconnect(room, member, ws)
 
 
 @app.post("/api/exam/sessions/{session_id}/retreat")
