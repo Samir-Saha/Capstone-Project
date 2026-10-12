@@ -4,7 +4,8 @@ import { Flag, Lightbulb, ShieldCheck, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BossArt } from "@/components/BossArt";
+import { BossArt, type BossState } from "@/components/BossArt";
+import { HurtVignette, ImpactBurst } from "@/components/Effects";
 import { DifficultyPips, Hearts, SegmentedHp } from "@/components/Hud";
 import { TeX } from "@/components/Math";
 import { ErrorNote, Spinner } from "@/components/ui";
@@ -12,7 +13,8 @@ import { api, notifyProgress, type AnswerFeedback, type Fight } from "@/lib/api"
 import { play } from "@/lib/sound";
 
 type Graded = Extract<AnswerFeedback, { status: "graded" }>;
-type Floater = { id: number; text: string; tone: "dmg" | "heal" };
+type Floater = { id: number; text: string; tone: "dmg" | "heal" | "note" };
+type Burst = { id: number; big: boolean };
 
 const OUTCOME: Record<string, { title: string; body: string; tone: string }> = {
   victory: { title: "Boss defeated", body: "Average mastery is at 75% or better across every topic.", tone: "text-heal" },
@@ -33,7 +35,10 @@ export default function FightPage() {
   const [feedback, setFeedback] = useState<Graded | null>(null);
   const [parseNote, setParseNote] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  const [bossState, setBossState] = useState<"idle" | "hit" | "attack" | "defeated">("idle");
+  const [bossState, setBossState] = useState<BossState>("idle");
+  const [bursts, setBursts] = useState<Burst[]>([]);
+  const [hurt, setHurt] = useState<number | null>(null);
+  const [comboKey, setComboKey] = useState(0);
   const [shake, setShake] = useState(false);
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [confirmRetreat, setConfirmRetreat] = useState(false);
@@ -47,6 +52,8 @@ export default function FightPage() {
       const f = await api.nextQuestion(id);
       setFight(f);
       setHint(f.current_question?.hint ?? null);
+      setBossState("windup");
+      setTimeout(() => setBossState("idle"), 540);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -59,7 +66,7 @@ export default function FightPage() {
       const f = await api.fight(id);
       setFight(f);
       if (f.status !== "active") {
-        setBossState(f.outcome === "victory" ? "defeated" : "idle");
+        setBossState(f.outcome === "victory" ? "defeated" : f.outcome === "knocked_out" ? "victor" : "idle");
         return;
       }
       if (f.current_question) setHint(f.current_question.hint);
@@ -104,6 +111,12 @@ export default function FightPage() {
     setTimeout(() => setFloaters((xs) => xs.filter((x) => x.id !== f.id)), 1300);
   };
 
+  const burst = (big: boolean) => {
+    const b = { id: Date.now() + Math.random(), big };
+    setBursts((xs) => [...xs, b]);
+    setTimeout(() => setBursts((xs) => xs.filter((x) => x.id !== b.id)), big ? 1300 : 900);
+  };
+
   const strike = async () => {
     if (!q || !answer.trim() || grading) return;
     setGrading(true);
@@ -115,18 +128,25 @@ export default function FightPage() {
         return;
       }
       setFeedback(fb);
+      const comboBefore = fight?.combo ?? 0;
+      const won = fb.session.outcome === "victory";
       if (fb.correct) {
         setBossState("hit");
         play("hit");
+        burst(won);
         if (fb.damage > 0) float(`−${fb.damage}`, "dmg");
+        if (fb.session.combo >= 3) setComboKey((k) => k + 1);
       } else {
         setBossState("attack");
         setShake(true);
+        setHurt(Date.now());
         play("miss");
-        if (fb.damage < 0) float(`+${-fb.damage} HP`, "heal");
+        if (fb.damage < 0) float(`Boss heals ${-fb.damage}`, "heal");
+        if (comboBefore >= 2) setTimeout(() => float(`${comboBefore} streak lost`, "note"), 250);
         setTimeout(() => setShake(false), 350);
+        setTimeout(() => setHurt(null), 700);
       }
-      setTimeout(() => setBossState(fb.session.outcome === "victory" ? "defeated" : "idle"), 520);
+      setTimeout(() => setBossState(won ? "defeated" : fb.session.outcome === "knocked_out" ? "victor" : "idle"), 480);
       if (fb.session.status !== "active") setTimeout(() => play(fb.session.outcome === "victory" ? "victory" : "defeat"), 600);
       notifyProgress(fb.xp);
       // Keep the old question on screen with feedback; update HUD numbers.
@@ -141,9 +161,11 @@ export default function FightPage() {
   const next = async () => {
     if (!feedback) return;
     if (feedback.session.status !== "active") {
-      router.push(`/exam/${id}/results`);
+      setFeedback(null); // reveal the outcome panel
       return;
     }
+    // Clear the answered question first so it can't flash back while the next one loads.
+    setFight((f) => (f ? { ...f, current_question: null } : f));
     setFeedback(null);
     setAnswer("");
     setHint(null);
@@ -173,6 +195,7 @@ export default function FightPage() {
 
   return (
     <div className={`grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] ${shake ? "animate-shake" : ""}`}>
+      {hurt !== null && <HurtVignette key={hurt} />}
       {/* Boss column */}
       <section className="panel relative flex flex-col overflow-hidden p-6" aria-label="Boss">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_50%_0%,rgba(139,108,255,0.22),transparent_70%)]" />
@@ -205,12 +228,21 @@ export default function FightPage() {
           <SegmentedHp topics={fight.topics} hp={fight.hp} victoryHp={fight.victory_hp} activeTopicId={over ? null : q?.topic_id} />
         </div>
         <div className="relative mx-auto my-4 flex h-[260px] w-[260px] items-center justify-center xl:h-[300px] xl:w-[300px]">
-          <BossArt courseId={fight.course_id} name={fight.boss_name} state={over && fight.outcome === "victory" ? "defeated" : bossState} className="h-full w-full" />
+          <BossArt
+            courseId={fight.course_id}
+            name={fight.boss_name}
+            state={over && bossState === "idle" ? (fight.outcome === "victory" ? "defeated" : fight.outcome === "knocked_out" ? "victor" : "idle") : bossState}
+            track={!over}
+            className="h-full w-full"
+          />
+          {bursts.map((b) => (
+            <ImpactBurst key={b.id} big={b.big} count={b.big ? 26 : 12} spread={b.big ? 190 : 120} color={b.big ? "#5BE3A1" : "#FFC857"} />
+          ))}
           {floaters.map((f) => (
             <span
               key={f.id}
               className={`pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 animate-rise font-display text-5xl font-bold drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] ${
-                f.tone === "dmg" ? "text-xp" : "text-hp"
+                f.tone === "dmg" ? "text-xp" : f.tone === "heal" ? "whitespace-nowrap text-3xl text-hp" : "top-2/3 whitespace-nowrap text-xl text-muted"
               }`}
               aria-hidden
             >
@@ -221,12 +253,18 @@ export default function FightPage() {
         <div className="relative mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
           <Hearts hearts={fight.hearts} max={fight.max_hearts} />
           <div className="flex items-center gap-5 font-display text-sm">
-            <span className={`inline-flex items-center gap-1 ${fight.combo >= 3 ? "text-xp" : "text-muted"}`} title="Correct answers in a row. Every 3 adds bonus XP.">
+            <span
+              key={comboKey}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 transition-colors ${
+                fight.combo >= 3 ? "animate-ignite bg-xp/15 text-xp shadow-[0_0_14px_-2px_rgba(255,200,87,0.6)]" : "text-muted"
+              }`}
+              title="Correct answers in a row. Every 3 adds bonus XP."
+            >
               <Zap size={15} className={fight.combo >= 3 ? "fill-xp" : ""} aria-hidden />
-              {fight.combo} streak
+              {fight.combo} streak{fight.combo >= 3 ? ", bonus XP" : ""}
             </span>
             <span className="tabular-nums text-muted">
-              {Math.min(fight.answered + (feedback ? 0 : q ? 1 : 0), fight.question_target)} / {fight.question_target}
+              {over ? fight.answered : Math.min(fight.answered + (feedback ? 0 : q ? 1 : 0), fight.question_target)} / {fight.question_target}
             </span>
           </div>
         </div>
@@ -234,9 +272,10 @@ export default function FightPage() {
 
       {/* Question column */}
       <section className="panel flex flex-col p-6 md:p-8 lg:min-h-[520px]" aria-label="Question" aria-live="polite">
-        {over && outcome ? (
-          <div className="m-auto max-w-md animate-pop text-center">
-            <p className={`h-display text-5xl ${outcome.tone}`}>{outcome.title}</p>
+        {over && outcome && !feedback ? (
+          <div className="relative m-auto max-w-md animate-pop text-center">
+            {fight.outcome === "victory" && <ImpactBurst big count={30} spread={260} color="#5BE3A1" />}
+            <p className={`h-display relative text-5xl ${outcome.tone}`}>{outcome.title}</p>
             <p className="mt-3 text-muted">{outcome.body}</p>
             <p className="mt-6 font-display text-lg">
               {fight.correct} of {fight.answered} correct, best streak {fight.best_combo}
@@ -260,7 +299,7 @@ export default function FightPage() {
             )}
           </div>
         ) : (
-          <>
+          <div key={q.id} className="flex flex-1 animate-enter flex-col">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="chip border-xp/50 text-xp">{q.topic}</span>
               <DifficultyPips level={q.difficulty} />
@@ -369,12 +408,12 @@ export default function FightPage() {
                   <p className="mt-4 text-xs text-muted">Graded by {feedback.grading.method}, not by AI.</p>
                 </div>
                 <button ref={nextRef} type="button" className="btn-primary mt-5 w-full py-3" onClick={next}>
-                  {feedback.session.status === "active" ? "Next attack" : "See how the fight went"}
+                  {feedback.session.status === "active" ? "Next attack" : "See the result"}
                   <span className="kbd">Enter</span>
                 </button>
               </div>
             )}
-          </>
+          </div>
         )}
       </section>
     </div>

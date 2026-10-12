@@ -2,6 +2,8 @@
 
 import { Heart } from "lucide-react";
 import type { Topic } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { useTween } from "@/lib/motion";
 
 /**
  * Boss HP, built from one segment per topic. Each segment is as wide as its share of
@@ -22,6 +24,7 @@ export function SegmentedHp({
   compact?: boolean;
 }) {
   const n = Math.max(topics.length, 1);
+  const shownHp = useTween(hp);
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
@@ -30,7 +33,8 @@ export function SegmentedHp({
           {victoryHp !== undefined && <span className="ml-2 font-sans text-xs font-normal text-muted">win at {victoryHp} or less</span>}
         </span>
         <span className="font-display text-2xl font-bold tabular-nums text-text">
-          {hp}
+          <span aria-hidden>{shownHp}</span>
+          <span className="sr-only">{hp}</span>
           <span className="text-sm font-medium text-muted"> / 100</span>
         </span>
       </div>
@@ -45,8 +49,13 @@ export function SegmentedHp({
               style={{ width: `${100 / n}%` }}
               title={`${t.name}: ${Math.round(t.mastery * 100)}% mastery`}
             >
+              {/* damage trail: lags behind the real bar so you can see where the hit landed */}
               <div
-                className="h-full bg-gradient-to-r from-[#FF3D66] to-hp transition-[width] duration-700 ease-out"
+                className="absolute inset-y-0 left-0 bg-[#FFE3A3] transition-[width] delay-[450ms] duration-[650ms] ease-in"
+                style={{ width: `${fill * 100}%` }}
+              />
+              <div
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#FF3D66] to-hp transition-[width] duration-200 ease-out"
                 style={{ width: `${fill * 100}%` }}
               />
             </div>
@@ -71,15 +80,31 @@ export function SegmentedHp({
 }
 
 export function Hearts({ hearts, max }: { hearts: number; max: number }) {
+  // Keep the breaking heart on screen for its whole animation, even through re-renders.
+  const prev = useRef(hearts);
+  const [lost, setLost] = useState<{ from: number; to: number } | null>(null);
+  useEffect(() => {
+    if (hearts < prev.current) {
+      setLost({ from: hearts, to: prev.current });
+      const t = setTimeout(() => setLost(null), 700);
+      prev.current = hearts;
+      return () => clearTimeout(t);
+    }
+    prev.current = hearts;
+  }, [hearts]);
   return (
-    <div className="flex items-center gap-1" aria-label={`${hearts} of ${max} hearts left`}>
+    <div className="flex items-center gap-1" role="img" aria-label={`${hearts} of ${max} hearts left`}>
       {Array.from({ length: max }, (_, i) => (
-        <Heart
-          key={i}
-          size={20}
-          className={`transition-all duration-300 ${i < hearts ? "fill-hp text-hp" : "scale-90 fill-transparent text-line"}`}
-          aria-hidden
-        />
+        <span key={i} className="relative inline-flex">
+          <Heart
+            size={22}
+            className={`transition-all duration-300 ${i < hearts ? "fill-hp text-hp drop-shadow-[0_0_6px_rgba(255,92,122,0.5)]" : "scale-90 fill-transparent text-line"}`}
+            aria-hidden
+          />
+          {lost && i >= lost.from && i < lost.to && (
+            <Heart key={`break-${hearts}`} size={22} className="absolute inset-0 animate-heartbreak fill-hp text-hp" aria-hidden />
+          )}
+        </span>
       ))}
     </div>
   );

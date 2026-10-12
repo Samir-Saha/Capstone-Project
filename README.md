@@ -58,10 +58,14 @@ The hosted version swaps SQLite for Supabase: the schema and row level security 
 | Live voice: transcript, audio-level pause detection, spoken questions | Real-time | `apps/web/lib/voice.ts` |
 | Course generation jobs with persisted progress | Background jobs | `reps_api/generation.py` |
 
+## Design tools
+
+`.claude/agents/` holds four design-review subagents (micro-interactions, ARIA, mobile-first layout, mobile design) used to audit Reps' motion, accessibility and phone layout. They're adapted from [claude-code-ui-agents](https://github.com/mustafakendiguzel/claude-code-ui-agents) by Mustafa Kendigüzel (MIT, license included in that folder), with Reps-specific context added.
+
 ## Tests
 
 ```bash
-cd apps/api && pytest -q                                  # 115 backend tests
+cd apps/api && pytest -q                                  # 116 backend tests
 python eval/assistments_bkt.py --synthetic                # BKT evaluation pipeline self-check
 cd ../web && npm run typecheck && npm run build
 REPS_DB_PATH=../api/data/reps.db python e2e/playthrough.py   # browser playthrough of all three modes

@@ -17,10 +17,11 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const VOICE_KEY = "reps.interviewer-voice";
 
-function Interviewer({ speaking }: { speaking: boolean }) {
+function Interviewer({ speaking, listening, thinking }: { speaking: boolean; listening: boolean; thinking: boolean }) {
   return (
     <div className="relative mx-auto h-36 w-36" aria-hidden>
       {speaking && <span className="absolute inset-0 animate-pulse_ring rounded-full border-2 border-xp" />}
+      {listening && <span className="absolute -inset-2 animate-breathe rounded-full border-2 border-dashed border-cyan/70" />}
       <svg viewBox="0 0 120 120" className="h-full w-full">
         <defs>
           <radialGradient id="iv" cx="40%" cy="35%" r="70%">
@@ -38,12 +39,47 @@ function Interviewer({ speaking }: { speaking: boolean }) {
             width="5"
             rx="2.5"
             fill="#2A1B04"
+            className={thinking ? "animate-breathe" : ""}
             y={speaking ? 52 - ((i * 7) % 11) : 57}
             height={speaking ? 16 + ((i * 7) % 11) * 2 : 6}
-            style={{ transition: "all 200ms" }}
+            style={{ transition: "all 200ms", animationDelay: `${i * 140}ms` }}
           />
         ))}
       </svg>
+    </div>
+  );
+}
+
+/** Elapsed time on a ring that fills toward a good answer length (about 2 minutes). */
+function AnswerClock({ seconds }: { seconds: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const p = Math.min(1, seconds / 120);
+  const tone = seconds < 45 ? "#9095BC" : seconds <= 150 ? "#FFC857" : "#FF5C7A";
+  const note = seconds < 45 ? "Keep going" : seconds <= 150 ? "Good length" : "Wrap it up";
+  return (
+    <div className="flex items-center gap-3">
+      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90" aria-hidden>
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#2C3256" strokeWidth="5" />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          stroke={tone}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - p)}
+          style={{ transition: "stroke-dashoffset 200ms linear, stroke 400ms" }}
+        />
+      </svg>
+      <div>
+        <div className="font-display text-xl tabular-nums">{fmtTime(seconds)}</div>
+        <div className="text-xs" style={{ color: tone }}>
+          {note}
+        </div>
+      </div>
     </div>
   );
 }
@@ -212,7 +248,10 @@ export default function Room() {
           </button>
         </div>
         <div className="mt-6">
-          <Interviewer speaking={speaking} />
+          <Interviewer speaking={speaking} listening={recorder.recording} thinking={submitting} />
+          <p className="mt-3 text-center text-xs text-muted" aria-live="polite">
+            {speaking ? "Asking" : recorder.recording ? "Listening" : submitting ? "Taking notes" : "Waiting for your answer"}
+          </p>
         </div>
         <div className="mt-6 flex items-center gap-1.5" aria-label={`${state.answered} of ${state.total} answered`}>
           {Array.from({ length: state.total }, (_, i) => (
@@ -323,7 +362,7 @@ export default function Room() {
                   {recorder.recording && (
                     <>
                       <LevelMeter level={recorder.level} />
-                      <span className="font-display text-xl tabular-nums">{fmtTime(recorder.elapsed)}</span>
+                      <AnswerClock seconds={recorder.elapsed} />
                     </>
                   )}
                 </div>

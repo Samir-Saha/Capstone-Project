@@ -222,7 +222,7 @@ create table if not exists interview_turns (
 
 
 def now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="microseconds")
 
 
 def local_day() -> str:

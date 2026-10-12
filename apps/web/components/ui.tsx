@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { useCountUp } from "@/lib/motion";
 
 export function Spinner({ label = "Loading" }: { label?: string }) {
   return (
@@ -23,6 +24,11 @@ export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () 
       )}
     </div>
   );
+}
+
+export function CountStat({ value, of, label, tone = "text" }: { value: number; of?: number; label: string; tone?: "text" | "xp" | "heal" | "hp" | "cyan" }) {
+  const shown = useCountUp(value);
+  return <Stat value={of !== undefined ? `${shown}/${of}` : shown} label={label} tone={tone} />;
 }
 
 export function Stat({ value, label, tone = "text" }: { value: React.ReactNode; label: string; tone?: "text" | "xp" | "heal" | "hp" | "cyan" }) {

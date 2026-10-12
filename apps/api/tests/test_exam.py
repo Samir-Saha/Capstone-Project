@@ -132,3 +132,14 @@ def test_streaks():
     assert streaks(["2026-10-10", "2026-10-11"], "2026-10-12") == (2, 2)  # yesterday still counts
     assert streaks(["2026-10-09"], "2026-10-12") == (0, 1)
     assert streaks(["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-11", "2026-10-12"], "2026-10-12") == (2, 3)
+
+
+def test_questions_asked_in_the_same_second_keep_their_order(store):
+    """Regression: second-resolution timestamps made back-to-back questions tie."""
+    s = exam.start_session(store, "calc-1")
+    rng = random.Random(11)
+    for _ in range(4):
+        q = exam.next_question(store, s["id"], rng=rng, use_pool=False)["current_question"]
+        exam.submit_answer(store, s["id"], q["id"], _key(store, q["id"]), use_pool=False)
+    stamps = [r["created_at"] for r in store.all("select created_at from exam_questions where session_id = ? order by rowid", (s["id"],))]
+    assert stamps == sorted(stamps) and len(set(stamps)) == len(stamps)

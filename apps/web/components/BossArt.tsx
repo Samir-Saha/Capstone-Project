@@ -1,7 +1,14 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "@/lib/motion";
+
 // Original boss illustrations, drawn in SVG. One per built-in course, plus a
 // generated variant for uploaded courses (colors seeded from the boss name).
 
-type Props = { courseId: string; name: string; state?: "idle" | "hit" | "attack" | "defeated"; className?: string };
+export type BossState = "idle" | "hit" | "attack" | "windup" | "defeated" | "victor";
+type Props = { courseId: string; name: string; state?: BossState; className?: string; track?: boolean };
+type Look = { x: number; y: number };
 
 function hue(name: string) {
   let h = 0;
@@ -9,7 +16,7 @@ function hue(name: string) {
   return h;
 }
 
-function Vexis() {
+function Vexis({ look }: { look: Look }) {
   // A crystalline eye wrapped in integral-sign tendrils.
   return (
     <svg viewBox="0 0 320 320" className="h-full w-full" aria-hidden>
@@ -56,15 +63,17 @@ function Vexis() {
       {/* eye */}
       <g filter="url(#vx-glow)">
         <ellipse cx="160" cy="150" rx="44" ry="30" fill="#0E1020" stroke="#B9A8FF" strokeWidth="2" />
-        <circle cx="160" cy="150" r="22" fill="url(#vx-core)" />
-        <ellipse cx="160" cy="150" rx="5" ry="16" fill="#0E1020" />
+        <g style={{ transform: `translate(${look.x * 14}px, ${look.y * 7}px)`, transition: "transform 120ms ease-out" }}>
+          <circle cx="160" cy="150" r="22" fill="url(#vx-core)" />
+          <ellipse cx="160" cy="150" rx="5" ry="16" fill="#0E1020" />
+          <circle cx="152" cy="142" r="4" fill="#fff" opacity="0.9" />
+        </g>
       </g>
-      <circle cx="152" cy="142" r="4" fill="#fff" opacity="0.9" />
     </svg>
   );
 }
 
-function Kinetor() {
+function Kinetor({ look }: { look: Look }) {
   // A rolling armored sphere with motion trails and vector arms.
   return (
     <svg viewBox="0 0 320 320" className="h-full w-full" aria-hidden>
@@ -106,14 +115,16 @@ function Kinetor() {
       {/* visor */}
       <g filter="url(#kt-glow)">
         <rect x="110" y="140" width="100" height="34" rx="17" fill="#0E1020" stroke="#9FF3FA" strokeWidth="2" />
-        <rect x="124" y="150" width="34" height="14" rx="7" fill="#FFC857" />
-        <rect x="166" y="150" width="34" height="14" rx="7" fill="#FFC857" />
+        <g style={{ transform: `translate(${look.x * 9}px, ${look.y * 4}px)`, transition: "transform 120ms ease-out" }}>
+          <rect x="124" y="150" width="34" height="14" rx="7" fill="#FFC857" />
+          <rect x="166" y="150" width="34" height="14" rx="7" fill="#FFC857" />
+        </g>
       </g>
     </svg>
   );
 }
 
-function Generated({ name }: { name: string }) {
+function Generated({ name, look }: { name: string; look: Look }) {
   const h = hue(name);
   const a = `hsl(${h} 85% 66%)`;
   const b = `hsl(${(h + 40) % 360} 70% 30%)`;
@@ -133,18 +144,51 @@ function Generated({ name }: { name: string }) {
       ))}
       <circle cx="160" cy="160" r="78" fill={`url(#${id})`} stroke={a} strokeWidth="2" />
       <ellipse cx="160" cy="158" rx="34" ry="20" fill="#0E1020" />
-      <circle cx="160" cy="158" r="11" fill={a} />
+      <circle cx="160" cy="158" r="11" fill={a} style={{ transform: `translate(${look.x * 16}px, ${look.y * 7}px)`, transition: "transform 120ms ease-out" }} />
     </svg>
   );
 }
 
-export function BossArt({ courseId, name, state = "idle", className = "" }: Props) {
-  const anim =
-    state === "hit" ? "animate-hit" : state === "attack" ? "animate-lunge" : state === "defeated" ? "opacity-30 grayscale" : "animate-float";
+const ANIM: Record<BossState, string> = {
+  idle: "animate-float",
+  hit: "animate-hit",
+  attack: "animate-lunge",
+  windup: "animate-windup",
+  defeated: "animate-shatter",
+  victor: "animate-loom",
+};
+
+export function BossArt({ courseId, name, state = "idle", className = "", track = false }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+  const [look, setLook] = useState<Look>({ x: 0, y: 0 });
+
+  // The boss's eye follows your cursor during a fight.
+  useEffect(() => {
+    if (!track || reduced) return;
+    let raf = 0;
+    const onMove = (e: PointerEvent) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const box = ref.current?.getBoundingClientRect();
+        if (!box) return;
+        const dx = (e.clientX - (box.left + box.width / 2)) / (window.innerWidth / 2);
+        const dy = (e.clientY - (box.top + box.height / 2)) / (window.innerHeight / 2);
+        setLook({ x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) });
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, [track, reduced]);
+
+  const still = state === "defeated" ? { x: 0, y: 0.6 } : look;
   return (
-    <div className={`relative transition-[opacity,filter] duration-700 ${className}`} role="img" aria-label={`${name}, the boss`}>
-      <div className={anim}>
-        {courseId === "calc-1" ? <Vexis /> : courseId === "phys-kinematics" ? <Kinetor /> : <Generated name={name} />}
+    <div ref={ref} className={`relative ${className}`} role="img" aria-label={`${name}, the boss`}>
+      <div key={state} className={ANIM[state]}>
+        {courseId === "calc-1" ? <Vexis look={still} /> : courseId === "phys-kinematics" ? <Kinetor look={still} /> : <Generated name={name} look={still} />}
       </div>
     </div>
   );

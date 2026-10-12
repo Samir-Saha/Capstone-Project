@@ -25,7 +25,7 @@ function BossCard({ course }: { course: Course }) {
   };
   return (
     <article className="panel grid gap-6 p-6 md:grid-cols-[180px_1fr]">
-      <BossArt courseId={course.id} name={course.boss_name} className="mx-auto h-44 w-44" />
+      <BossArt courseId={course.id} name={course.boss_name} className="mx-auto h-44 w-44" track />
       <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

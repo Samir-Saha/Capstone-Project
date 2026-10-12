@@ -120,7 +120,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                         {player.xp_into_level}/{player.xp_for_next} XP
                       </span>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-raised">
+                    <div key={gain?.id ?? 0} className={`mt-1 h-1.5 overflow-hidden rounded-full bg-raised ${gain ? "animate-glow" : ""}`}>
                       <div className="h-full rounded-full bg-xp transition-[width] duration-700" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
@@ -174,10 +174,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       {levelUp !== null && (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center" role="status">
-          <div className="animate-pop rounded-panel border border-xp/60 bg-surface/95 px-10 py-6 text-center shadow-[0_0_80px_-10px_rgba(255,200,87,0.6)]">
+        <div className="pointer-events-none fixed inset-x-0 top-20 z-50 flex justify-center" role="status">
+          <div className="flex animate-pop items-center gap-4 rounded-panel border border-xp/60 bg-surface/95 px-6 py-3 shadow-[0_0_60px_-10px_rgba(255,200,87,0.6)]">
             <div className="font-display text-sm font-semibold text-xp">Level up</div>
-            <div className="font-display text-6xl font-bold">{levelUp}</div>
+            <div className="font-display text-4xl font-bold">{levelUp}</div>
           </div>
         </div>
       )}

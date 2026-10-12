@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BossArt } from "@/components/BossArt";
 import { MasteryBar, SegmentedHp } from "@/components/Hud";
-import { ErrorNote, Spinner, Stat, XP_REASON, timeAgo } from "@/components/ui";
+import { CountStat, ErrorNote, Spinner, XP_REASON, timeAgo } from "@/components/ui";
 import { api, notifyProgress, type Course, type InterviewHistoryItem, type Player, type ProblemSummary } from "@/lib/api";
 
 function greeting() {
@@ -95,9 +95,9 @@ export default function Hub() {
           </p>
         </div>
         <div className="flex gap-10">
-          <Stat value={player.stats.bosses_defeated} label="Bosses beaten" />
-          <Stat value={`${solved}/${problems.length}`} label="Problems solved" tone="cyan" />
-          <Stat value={player.best_streak} label="Best streak" tone="xp" />
+          <CountStat value={player.stats.bosses_defeated} label="Bosses beaten" />
+          <CountStat value={solved} of={problems.length} label="Problems solved" tone="cyan" />
+          <CountStat value={player.best_streak} label="Best streak" tone="xp" />
         </div>
       </section>
 
@@ -120,7 +120,7 @@ export default function Hub() {
                 {featured ? `${featured.name}${featured.active_session_id ? ", fight in progress" : ""}` : "Your syllabus becomes the boss."}
               </p>
             </div>
-            {featured && <BossArt courseId={featured.id} name={featured.boss_name} className="-mr-2 -mt-2 h-28 w-28 shrink-0" />}
+            {featured && <BossArt courseId={featured.id} name={featured.boss_name} className="-mr-2 -mt-2 h-28 w-28 shrink-0" track />}
           </div>
           {featured && (
             <div className="mt-5">

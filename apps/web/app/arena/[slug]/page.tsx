@@ -166,7 +166,16 @@ export default function ProblemPage() {
         <div className="panel max-h-[45%] min-h-[150px] overflow-y-auto p-5" aria-live="polite">
           {error && <ErrorNote message={error} />}
           {busy ? (
-            <Spinner label={busy === "run" ? "Running the examples" : "Running every test"} />
+            <div role="status">
+              <p className="font-display text-lg">
+                {busy === "run" ? `Running ${problem.examples.length} examples` : `Running ${problem.examples.length + problem.hidden_tests} tests`}
+              </p>
+              <div className="mt-3 flex gap-[2px]" aria-hidden>
+                {Array.from({ length: busy === "run" ? problem.examples.length : problem.examples.length + problem.hidden_tests }, (_, i) => (
+                  <span key={i} className="h-2.5 flex-1 animate-breathe rounded-sm bg-cyan/50" style={{ animationDelay: `${(i % 12) * 90}ms` }} />
+                ))}
+              </div>
+            </div>
           ) : result ? (
             <VerdictView result={result.data} mode={result.mode} />
           ) : (
