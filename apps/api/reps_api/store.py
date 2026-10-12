@@ -180,6 +180,7 @@ create table if not exists coding_submissions (
   total integer,
   runtime_ms real,
   executor text,
+  scale text,
   created_at text not null
 );
 create index if not exists coding_submissions_slug on coding_submissions (slug, created_at);
@@ -221,6 +222,13 @@ create table if not exists interview_turns (
 """
 
 
+# Columns added after a table first shipped. Store() adds any that an older local
+# database is missing, so nobody has to delete their progress to upgrade.
+ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    ("coding_submissions", "scale", "text"),
+]
+
+
 def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="microseconds")
 
@@ -251,7 +259,14 @@ class Store:
         self._conn.execute("pragma journal_mode = wal")
         self._lock = threading.RLock()
         self._conn.executescript(SCHEMA)
+        self._migrate()
         self._conn.execute("insert or ignore into player (id, created_at) values (1, ?)", (now_iso(),))
+
+    def _migrate(self) -> None:
+        for table, column, decl in ADDED_COLUMNS:
+            have = {r[1] for r in self._conn.execute(f"pragma table_info({table})")}
+            if column not in have:
+                self._conn.execute(f"alter table {table} add column {column} {decl}")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

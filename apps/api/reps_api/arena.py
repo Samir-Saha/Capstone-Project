@@ -6,16 +6,26 @@ served. Hidden tests come from the verified reference and never leave the backen
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import os
 import re
 import threading
+from pathlib import Path
 from typing import Any
 
 from .content.seed_coding import SEED_PROBLEMS
 from .progression import XP_RULES, award
 from .store import Store, new_id, now_iso
-from .verification.coding_engine import CodingProblemSpec, CodingVerification, SubmissionResult, grade_submission, verify_coding_problem
-from .verification.executors import Executor, executor_from_env
+from .verification.coding_engine import (
+    CodingProblemSpec,
+    CodingVerification,
+    SubmissionResult,
+    grade_scale,
+    grade_submission,
+    verify_coding_problem,
+)
+from .verification.executors import HARNESS_PATH, Executor, executor_from_env
 from .verification.status import VerificationStatus
 
 log = logging.getLogger("reps.arena")
@@ -35,6 +45,31 @@ def slug(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
 
+def _cache_dir() -> Path | None:
+    if os.environ.get("REPS_ARENA_CACHE", "1") == "0":
+        return None
+    d = Path(os.environ.get("REPS_CACHE_DIR") or Path(__file__).resolve().parents[1] / "data" / "cache")
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _verify_cached(spec: CodingProblemSpec, ex: Executor) -> CodingVerification:
+    """Verification (and speed-tier calibration) is cached per machine, keyed by the
+    problem, the harness and the runner, so restarts don't repeat ~15s of checks."""
+    cache = _cache_dir()
+    key = hashlib.sha256((spec.model_dump_json() + HARNESS_PATH.read_text() + ex.name).encode()).hexdigest()[:24]
+    path = cache / f"arena-{key}.json" if cache else None
+    if path and path.exists():
+        try:
+            return CodingVerification.model_validate_json(path.read_text())
+        except ValueError:
+            path.unlink(missing_ok=True)
+    v = verify_coding_problem(spec, ex)
+    if path and v.status is VerificationStatus.VERIFIED:
+        path.write_text(v.model_dump_json())
+    return v
+
+
 def load(store: Store | None = None, executor: Executor | None = None) -> dict[str, tuple[CodingProblemSpec, CodingVerification]]:
     global _arena
     with _lock:
@@ -42,7 +77,7 @@ def load(store: Store | None = None, executor: Executor | None = None) -> dict[s
             ex = executor or executor_from_env()
             arena = {}
             for spec in SEED_PROBLEMS:
-                v = verify_coding_problem(spec, ex)
+                v = _verify_cached(spec, ex)
                 if store is not None:
                     store.run(
                         "insert into verification_log (id, subject, subject_id, status, reason, method, duration_ms, created_at) "
@@ -70,6 +105,10 @@ def _get(store: Store, problem_slug: str) -> tuple[CodingProblemSpec, CodingVeri
     return arena[problem_slug]
 
 
+def _fast(store: Store, problem_slug: str) -> bool:
+    return bool(store.one("select 1 from xp_events where reason = 'coding_fast' and source_id = ?", (problem_slug,)))
+
+
 def _status(store: Store, problem_slug: str) -> str:
     row = store.one(
         "select max(case when is_submit = 1 and verdict = 'accepted' then 1 else 0 end) solved, count(*) n from coding_submissions where slug = ?",
@@ -95,6 +134,7 @@ def list_problems(store: Store) -> list[dict[str, Any]]:
                 "status": _status(store, s),
                 "xp": XP_RULES[f"coding_accepted_{spec.difficulty}"],
                 "verified_cases": v.cases_run,
+                "fast": _fast(store, s),
             }
         )
     return sorted(out, key=lambda p: (DIFFICULTY_ORDER[p["difficulty"]], p["title"]))
@@ -108,7 +148,7 @@ def problem_detail(store: Store, problem_slug: str) -> dict[str, Any]:
     spec, v = _get(store, problem_slug)
     last = store.one("select code from coding_submissions where slug = ? order by created_at desc limit 1", (problem_slug,))
     history = store.all(
-        "select verdict, passed, total, is_submit, runtime_ms, created_at from coding_submissions where slug = ? order by created_at desc limit 10",
+        "select verdict, scale, passed, total, is_submit, runtime_ms, created_at from coding_submissions where slug = ? order by created_at desc limit 10",
         (problem_slug,),
     )
     return {
@@ -125,6 +165,8 @@ def problem_detail(store: Store, problem_slug: str) -> dict[str, Any]:
         "status": _status(store, problem_slug),
         "xp": XP_RULES[f"coding_accepted_{spec.difficulty}"],
         "verification": {"cases_run": v.cases_run, "method": "reference vs independent brute force", "seed": v.seed},
+        "speed_tier": {"limit_ms": v.scale.limit_ms, "reference_ms": round(v.scale.reference_ms, 1)} if v.scale else None,
+        "fast": _fast(store, problem_slug),
         "history": [{**h, "is_submit": bool(h["is_submit"])} for h in history],
     }
 
@@ -144,4 +186,9 @@ def grade(store: Store, problem_slug: str, code: str, language: str, submit: boo
     if submit and result.verdict == "accepted":
         # One award per problem, ever: source is the problem, not the submission.
         xp = award(store, f"coding_accepted_{spec.difficulty}", XP_RULES[f"coding_accepted_{spec.difficulty}"], "coding_problem", problem_slug)
+        if v.scale:
+            result.scale = grade_scale(code, spec, v.scale, executor)
+            if result.scale.status == "fast":
+                xp += award(store, "coding_fast", XP_RULES["coding_fast"], "coding_problem", problem_slug)
+            store.run("update coding_submissions set scale = ? where id = ?", (result.scale.status, sub_id))
     return {**result.model_dump(), "xp": xp, "submission_id": sub_id, "status": _status(store, problem_slug)}

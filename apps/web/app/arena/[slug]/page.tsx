@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Play, RotateCcw, Send, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Play, RotateCcw, Send, ShieldCheck, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -64,7 +64,7 @@ export default function ProblemPage() {
         play(data.verdict === "accepted" ? "accepted" : "rejected");
         if (mode === "submit") {
           notifyProgress(data.xp);
-          setProblem((p) => (p ? { ...p, status: data.status } : p));
+          setProblem((p) => (p ? { ...p, status: data.status, fast: p.fast || data.scale?.status === "fast" } : p));
         }
       } catch (e) {
         setError((e as Error).message);
@@ -115,6 +115,13 @@ export default function ProblemPage() {
             Submit also runs {problem.hidden_tests} hidden tests. This problem passed {problem.verification.cases_run} differential checks before it was
             published.
           </p>
+          {problem.speed_tier && (
+            <p className="mt-3 flex items-start gap-2 text-sm text-muted">
+              <Zap size={16} className={`mt-0.5 shrink-0 ${problem.fast ? "fill-cyan text-cyan" : "text-cyan"}`} aria-hidden />
+              Speed tier: a passing submission also runs on one large input and must finish within {Math.round(problem.speed_tier.limit_ms)} ms (20× our
+              reference on this machine). {problem.fast ? "You've cleared it." : "+15 XP the first time you clear it."}
+            </p>
+          )}
           {problem.history.length > 0 && (
             <>
               <h2 className="h-display mt-7 text-lg">Your attempts</h2>
@@ -123,6 +130,7 @@ export default function ProblemPage() {
                   <li key={i} className="flex justify-between py-2">
                     <span className={h.verdict === "accepted" ? "text-cyan" : "text-muted"}>
                       {h.is_submit ? "Submit" : "Run"}: {h.verdict.replace(/_/g, " ")}
+                      {h.scale ? `, ${h.scale} at scale` : ""}
                     </span>
                     <span className="tabular-nums text-muted">
                       {h.passed}/{h.total}

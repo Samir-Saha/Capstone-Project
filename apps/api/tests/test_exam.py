@@ -143,3 +143,21 @@ def test_questions_asked_in_the_same_second_keep_their_order(store):
         exam.submit_answer(store, s["id"], q["id"], _key(store, q["id"]), use_pool=False)
     stamps = [r["created_at"] for r in store.all("select created_at from exam_questions where session_id = ? order by rowid", (s["id"],))]
     assert stamps == sorted(stamps) and len(set(stamps)) == len(stamps)
+
+
+def test_old_databases_gain_new_columns(tmp_path):
+    import sqlite3
+
+    from reps_api.store import Store
+
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.execute(
+        "create table coding_submissions (id text primary key, slug text not null, code text not null, is_submit integer not null, "
+        "verdict text not null, passed integer, total integer, runtime_ms real, executor text, created_at text not null)"
+    )
+    db.commit()
+    db.close()
+    s = Store(path)
+    cols = {r["name"] for r in s.all("pragma table_info(coding_submissions)")}
+    assert "scale" in cols

@@ -36,6 +36,29 @@ class CodingProblemSpec(BaseModel):
     edge_cases: list[list[Any]] = Field(default_factory=list)
     public_examples: list[list[Any]] = Field(default_factory=list)
     unordered_output: bool = False
+    # Speed tier: source defining generate_large() -> args, one big deterministic input
+    # that an efficient solution handles quickly and a naive one doesn't.
+    scale_generator: str | None = None
+
+
+SCALE_FACTOR = 20  # a submission may take up to 20x the reference's time
+SCALE_FLOOR_MS = 10.0
+
+
+class ScaleTier(BaseModel):
+    """Measured on this machine when the problem is verified, so the limit is self-calibrating."""
+
+    reference_ms: float
+    limit_ms: float
+    reference_hash: str
+    brute_force_too_slow: bool  # does the tier actually separate the two solutions?
+
+
+class ScaleResult(BaseModel):
+    status: Literal["fast", "slow", "wrong", "error"]
+    ms: float | None = None
+    limit_ms: float
+    detail: str | None = None
 
 
 class TestCase(BaseModel):
@@ -54,6 +77,7 @@ class CodingVerification(BaseModel):
     executor: str
     duration_ms: int = 0
     tests: list[TestCase] = Field(default_factory=list)
+    scale: ScaleTier | None = None
     detail: dict[str, Any] = Field(default_factory=dict)  # internal; never sent to students
 
 
@@ -171,12 +195,26 @@ def verify_coding_problem(
     n_public = len(spec.public_examples)
     tests = [TestCase(args=a, expected=o, hidden=i >= n_public) for i, (a, o) in enumerate(zip(all_inputs, outputs))]
 
+    tier = None
+    if spec.scale_generator:
+        job = {"mode": "scale", "solution": spec.reference_solution, "generator": spec.scale_generator, "unordered": spec.unordered_output}
+        ref_scale = executor.run(job, cpu_seconds=30, memory_mb=1536)
+        if ref_scale.status != "ok" or ref_scale.payload.get("status") != "ok":
+            return finish(VerificationStatus.REJECTED, "reference failed on the speed-tier input", detail={"scale": ref_scale.payload or ref_scale.status})
+        ref_ms = float(ref_scale.payload["ms"])
+        limit = round(max(SCALE_FLOOR_MS, SCALE_FACTOR * ref_ms), 1)
+        brute_job = {**job, "solution": spec.brute_force_solution}
+        brute_scale = executor.run(brute_job, cpu_seconds=max(2, int(limit * 1.5 / 1000) + 1), memory_mb=1536)
+        brute_slow = brute_scale.status != "ok" or brute_scale.payload.get("status") != "ok" or float(brute_scale.payload.get("ms", 0)) > limit
+        tier = ScaleTier(reference_ms=ref_ms, limit_ms=limit, reference_hash=ref_scale.payload["output_hash"], brute_force_too_slow=brute_slow)
+
     return finish(
         VerificationStatus.VERIFIED,
         cases_run=diff.payload["cases_run"],
         edge_cases=diff.payload["edge_cases"],
         random_cases=diff.payload["random_cases"],
         tests=tests,
+        scale=tier,
         detail={"reference_ms": diff.payload.get("reference_ms"), "brute_ms": diff.payload.get("brute_ms")},
     )
 
@@ -215,6 +253,23 @@ class SubmissionResult(BaseModel):
     error: str | None = None
     runtime_ms: float | None = None
     executor: str
+    scale: ScaleResult | None = None
+
+
+def grade_scale(code: str, spec: CodingProblemSpec, tier: ScaleTier, executor: Executor) -> ScaleResult:
+    job = {"mode": "scale", "solution": code, "generator": spec.scale_generator, "unordered": spec.unordered_output}
+    res = executor.run(job, cpu_seconds=max(2, int(tier.limit_ms * 1.3 / 1000) + 2), memory_mb=1536)
+    if res.status == "time_limit_exceeded":
+        return ScaleResult(status="slow", limit_ms=tier.limit_ms, detail="didn't finish before the time limit")
+    if res.status != "ok":
+        return ScaleResult(status="error", limit_ms=tier.limit_ms, detail=res.status.replace("_", " "))
+    payload = res.payload
+    if payload.get("status") != "ok":
+        return ScaleResult(status="error", limit_ms=tier.limit_ms, detail=payload.get("error") or payload.get("status"))
+    ms = float(payload["ms"])
+    if payload["output_hash"] != tier.reference_hash:
+        return ScaleResult(status="wrong", ms=ms, limit_ms=tier.limit_ms, detail="wrong answer on the large input")
+    return ScaleResult(status="fast" if ms <= tier.limit_ms else "slow", ms=round(ms, 1), limit_ms=tier.limit_ms)
 
 
 def grade_submission(

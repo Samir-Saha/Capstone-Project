@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { Check, Gauge, X, Zap } from "lucide-react";
 import type { CodeResult } from "@/lib/api";
 
 const LABEL: Record<CodeResult["verdict"], { text: string; tone: string }> = {
@@ -14,6 +14,38 @@ const LABEL: Record<CodeResult["verdict"], { text: string; tone: string }> = {
 };
 
 const fmt = (v: unknown) => JSON.stringify(v);
+
+function fmtMs(ms: number) {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms`;
+}
+
+function SpeedTier({ scale }: { scale: NonNullable<CodeResult["scale"]> }) {
+  const fast = scale.status === "fast";
+  const pct = scale.ms !== null ? Math.min(100, (scale.ms / scale.limit_ms) * 100) : 100;
+  return (
+    <div className={`animate-enter rounded-chip border p-3 ${fast ? "border-cyan/50 bg-cyan/10" : "border-xp/50 bg-xp/10"}`} style={{ animationDelay: "250ms" }}>
+      <div className="flex flex-wrap items-center gap-2 font-display font-semibold">
+        {fast ? <Zap size={16} className="fill-cyan text-cyan" aria-hidden /> : <Gauge size={16} className="text-xp" aria-hidden />}
+        <span className={fast ? "text-cyan" : "text-xp"}>
+          {fast
+            ? "Fast at scale"
+            : scale.status === "slow"
+              ? "Accepted, but too slow at scale"
+              : scale.status === "wrong"
+                ? "Correct on the tests, wrong on the large input"
+                : "The large input crashed your code"}
+        </span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink" aria-hidden>
+        <div className={`h-full rounded-full ${fast ? "bg-cyan" : "bg-xp"}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-2 text-sm text-muted">
+        {scale.ms !== null ? `${fmtMs(scale.ms)} on the large input` : scale.detail ?? "Didn't finish"}, limit {fmtMs(scale.limit_ms)}.
+        {!fast && scale.status === "slow" && " An interviewer would ask for a faster approach. Look at the pattern this problem trains."}
+      </p>
+    </div>
+  );
+}
 
 export function VerdictView({ result, mode }: { result: CodeResult; mode: "run" | "submit" }) {
   const v = LABEL[result.verdict];
@@ -34,6 +66,7 @@ export function VerdictView({ result, mode }: { result: CodeResult; mode: "run" 
         </p>
         {result.xp > 0 && <p className="font-display font-semibold text-xp">+{result.xp} XP</p>}
       </div>
+      {result.scale && <SpeedTier scale={result.scale} />}
       {result.verdict === "time_limit_exceeded" && <p className="text-sm">Your code ran past the time limit. Look for an infinite loop or a faster approach.</p>}
       {result.error && <pre className="whitespace-pre-wrap rounded-chip bg-hp/10 p-3 font-mono text-[13px] text-hp">{result.error}</pre>}
       {result.first_failed_hidden !== null && (

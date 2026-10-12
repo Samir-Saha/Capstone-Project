@@ -60,7 +60,7 @@ def test_arena_hides_hidden_tests_and_awards_xp_once(client):
     assert "def solve(minutes, budget):" not in str(detail)
     assert len(detail["examples"]) == len(LONGEST_BUDGET_WINDOW.public_examples)
     first = client.post(f"/api/coding/problems/{slug}/submit", json={"code": LONGEST_BUDGET_WINDOW.reference_solution}).json()
-    assert first["verdict"] == "accepted" and first["xp"] == 40
+    assert first["verdict"] == "accepted" and first["scale"]["status"] == "fast" and first["xp"] == 40 + 15  # solve + speed bonus
     again = client.post(f"/api/coding/problems/{slug}/submit", json={"code": LONGEST_BUDGET_WINDOW.reference_solution}).json()
     assert again["xp"] == 0
     assert client.get(f"/api/coding/problems/{slug}").json()["status"] == "solved"

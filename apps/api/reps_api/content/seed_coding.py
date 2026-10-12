@@ -43,6 +43,12 @@ def generate(rng):
 """,
     edge_cases=[[[], 10], [[5], 4], [[5], 5], [[0, 0, 0], 0], [[100, 1, 1, 1], 2]],
     public_examples=[[[30, 10, 20, 50, 5], 60], [[90, 90], 50]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(7)
+    return [[rng.randint(0, 50) for _ in range(100_000)], 5_000]
+""",
 )
 
 ISLAND_GROUPS = CodingProblemSpec(
@@ -102,6 +108,13 @@ def generate(rng):
 """,
     edge_cases=[[1, []], [3, []], [2, [[0, 0]]], [4, [[0, 1], [1, 2], [2, 3]]]],
     public_examples=[[5, [[0, 1], [1, 2], [3, 4]]], [3, []]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(7)
+    n = 200_000
+    return [n, [[rng.randrange(n), rng.randrange(n)] for _ in range(300_000)]]
+""",
 )
 
 FEWEST_PROBLEM_SETS = CodingProblemSpec(
@@ -150,6 +163,10 @@ def generate(rng):
 """,
     edge_cases=[[[1], 0], [[2], 3], [[5, 3], 7], [[7], 7]],
     public_examples=[[[1, 3, 4], 6], [[2], 3]],
+    scale_generator="""
+def generate_large():
+    return [[7, 13, 29, 31], 200_000]
+""",
 )
 
 PAIR_UP = CodingProblemSpec(
@@ -200,6 +217,12 @@ def generate(rng):
 """,
     edge_cases=[[[], 0], [[5], 10], [[2, 2, 2, 2], 4], [[1, 1, 3, 3], 4], [[-3, 0, 3], 0]],
     public_examples=[[[1, 2, 3, 4, 5], 6], [[2, 2, 2], 4]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(7)
+    return [sorted(rng.randint(-1_000_000, 1_000_000) for _ in range(200_000)), 0]
+""",
 )
 
 FIRST_PASSING = CodingProblemSpec(
@@ -233,6 +256,13 @@ def generate(rng):
 """,
     edge_cases=[[[], 50], [[70], 70], [[70], 71], [[60, 60, 60], 60], [[1, 2, 3], 0]],
     public_examples=[[[42, 55, 61, 61, 90], 60], [[10, 20], 95]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(7)
+    scores = sorted(rng.randint(0, 10_000_000) for _ in range(1_000_000))
+    return [scores, scores[900_000]]
+""",
 )
 
 BALANCED_NOTES = CodingProblemSpec(
@@ -281,6 +311,10 @@ def generate(rng):
 """,
     edge_cases=[[""], ["("], [")"], ["([)]"], ["{[()]}"], ["(()"]],
     public_examples=[["([]{})"], ["(]"]],
+    scale_generator="""
+def generate_large():
+    return ["(" * 100_000 + ")" * 100_000]
+""",
 )
 
 SEED_PROBLEMS = [PAIR_UP, FIRST_PASSING, BALANCED_NOTES, LONGEST_BUDGET_WINDOW, ISLAND_GROUPS, FEWEST_PROBLEM_SETS]

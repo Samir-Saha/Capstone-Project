@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Circle, CircleDot, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, ShieldCheck, Zap } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ErrorNote, Spinner } from "@/components/ui";
@@ -75,7 +75,10 @@ export default function Arena() {
                   className="grid grid-cols-[28px_1fr_auto] items-center gap-4 px-5 py-4 transition-colors hover:bg-raised/60 md:grid-cols-[28px_1fr_160px_90px_110px]"
                 >
                   {STATUS_ICON[p.status]}
-                  <span className="font-display text-lg font-semibold">{p.title}</span>
+                  <span className="flex items-center gap-2 font-display text-lg font-semibold">
+                    {p.title}
+                    {p.fast && <Zap size={15} className="fill-cyan text-cyan" aria-label="Cleared the speed tier" />}
+                  </span>
                   <span className="hidden text-sm text-muted md:block">{p.pattern}</span>
                   <span className={`hidden text-sm font-semibold capitalize md:block ${DIFF_TONE[p.difficulty]}`}>{p.difficulty}</span>
                   <span className="flex items-center justify-end gap-3 text-sm">

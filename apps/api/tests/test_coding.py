@@ -159,3 +159,39 @@ def test_runner_without_rlimits_still_grades_and_times_out(window):
     assert good.verdict == "accepted"
     slow = grade_submission("def solve(m, b):\n    while True:\n        pass", window.tests, ex, include_hidden=True)
     assert slow.verdict == "time_limit_exceeded"
+
+
+# ------------------------------------------------------------------ speed tiers
+
+from reps_api.content.seed_coding import FIRST_PASSING  # noqa: E402
+from reps_api.verification.coding_engine import grade_scale  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def first_passing():
+    v = verify_coding_problem(FIRST_PASSING, EX)
+    assert v.status is VerificationStatus.VERIFIED and v.scale is not None
+    return v
+
+
+def test_every_seed_problem_has_a_calibrated_speed_tier():
+    for p in SEED_PROBLEMS:
+        assert p.scale_generator, p.title
+
+
+def test_speed_tier_separates_linear_scan_from_binary_search(first_passing):
+    tier = first_passing.scale
+    assert tier.brute_force_too_slow
+    linear = "def solve(scores, cutoff):\n    for i, v in enumerate(scores):\n        if v >= cutoff:\n            return i\n    return -1\n"
+    assert grade_scale(linear, FIRST_PASSING, tier, EX).status == "slow"
+    assert grade_scale(FIRST_PASSING.reference_solution, FIRST_PASSING, tier, EX).status == "fast"
+
+
+def test_speed_tier_catches_wrong_answers_on_the_large_input(first_passing):
+    off_by_one = FIRST_PASSING.reference_solution.replace("return lo if lo < len(scores) else -1", "return lo + 1 if lo < len(scores) else -1")
+    assert grade_scale(off_by_one, FIRST_PASSING, first_passing.scale, EX).status == "wrong"
+
+
+def test_input_copying_is_not_timed():
+    out = EX.run({"mode": "run", "solution": "def solve(xs):\n    return 0\n", "inputs": [[list(range(300_000))]]})
+    assert out.payload["ms"][0] < 5

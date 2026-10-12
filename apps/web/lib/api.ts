@@ -190,6 +190,7 @@ export type ProblemSummary = {
   status: "new" | "attempted" | "solved";
   xp: number;
   verified_cases: number;
+  fast: boolean;
 };
 
 export type ProblemDetail = Omit<ProblemSummary, "verified_cases"> & {
@@ -200,7 +201,9 @@ export type ProblemDetail = Omit<ProblemSummary, "verified_cases"> & {
   starter_code: string;
   saved_code: string | null;
   verification: { cases_run: number; method: string; seed: number };
-  history: { verdict: string; passed: number; total: number; is_submit: boolean; runtime_ms: number | null; created_at: string }[];
+  speed_tier: { limit_ms: number; reference_ms: number } | null;
+  fast: boolean;
+  history: { verdict: string; scale: ScaleResult["status"] | null; passed: number; total: number; is_submit: boolean; runtime_ms: number | null; created_at: string }[];
 };
 
 export type Verdict =
@@ -211,6 +214,8 @@ export type Verdict =
   | "time_limit_exceeded"
   | "memory_limit_exceeded"
   | "execution_unavailable";
+
+export type ScaleResult = { status: "fast" | "slow" | "wrong" | "error"; ms: number | null; limit_ms: number; detail: string | null };
 
 export type CodeResult = {
   verdict: Verdict;
@@ -225,6 +230,7 @@ export type CodeResult = {
   executor: string;
   xp: number;
   status: ProblemSummary["status"];
+  scale: ScaleResult | null;
 };
 
 export type ResumeClaim = { text: string; measurable: boolean; technologies: string[] };

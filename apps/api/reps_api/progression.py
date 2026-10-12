@@ -21,6 +21,7 @@ XP_RULES: dict[str, int] = {
     "coding_accepted_easy": 25,
     "coding_accepted_medium": 40,
     "coding_accepted_hard": 60,
+    "coding_fast": 15,  # passed the speed tier
     "interview_answer": 10,
     "interview_finished": 30,
 }

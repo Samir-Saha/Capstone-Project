@@ -10,6 +10,7 @@ Job shapes
   {"mode": "differential", "reference": src, "brute": src, "generator": src,
    "edge_cases": [[args...]], "n_random": 300, "seed": 1, "unordered": false}
   {"mode": "run", "solution": src, "inputs": [[args...], ...]}
+  {"mode": "scale", "solution": src, "generator": src defining generate_large()}
 
 Every solution defines solve(*args). A generator defines generate(rng) -> list of args.
 """
@@ -156,8 +157,9 @@ def run(job):
     timings = []
     for args in job["inputs"]:
         try:
+            call_args = copy.deepcopy(args)  # copying the input isn't the student's time
             t0 = time.perf_counter()
-            out = solution(*copy.deepcopy(args))
+            out = solution(*call_args)
             timings.append(round((time.perf_counter() - t0) * 1000, 3))
         except MemoryError:
             return {"status": "memory_limit_exceeded", "outputs": outputs, "ms": timings, "failed_index": len(outputs)}
@@ -181,6 +183,40 @@ def run(job):
     return {"status": "ok", "outputs": outputs, "ms": timings}
 
 
+def scale(job):
+    """Time one call on a large input generated inside the sandbox.
+
+    Only a hash of the output leaves the sandbox, so huge outputs don't have to be
+    shipped back, and the student never sees the reference answer.
+    """
+    import hashlib
+
+    try:
+        gen = _load(job["generator"], "scale_generator", "generate_large")
+        args = gen()
+    except Exception as err:
+        return {"status": "generator_error", "error": err.__class__.__name__ + ": " + str(err)}
+    try:
+        solution = _load(job["solution"], "solution", "solve")
+    except SyntaxError as err:
+        return {"status": "compilation_error", "error": "SyntaxError: " + str(err.msg)}
+    except Exception as err:
+        return {"status": "runtime_error", "error": err.__class__.__name__ + ": " + str(err)}
+    call_args = copy.deepcopy(args)
+    try:
+        t0 = time.perf_counter()
+        out = solution(*call_args)
+        ms = (time.perf_counter() - t0) * 1000
+    except MemoryError:
+        return {"status": "memory_limit_exceeded"}
+    except RecursionError:
+        return {"status": "runtime_error", "error": "RecursionError: maximum recursion depth exceeded"}
+    except Exception as err:
+        return {"status": "runtime_error", "error": err.__class__.__name__}
+    digest = hashlib.sha256(json.dumps(_canon(out, bool(job.get("unordered"))), sort_keys=True).encode()).hexdigest()
+    return {"status": "ok", "ms": round(ms, 3), "output_hash": digest}
+
+
 def main():
     job = json.loads(sys.stdin.read())
     sys.setrecursionlimit(10000)
@@ -189,6 +225,8 @@ def main():
             result = differential(job)
         elif job.get("mode") == "run":
             result = run(job)
+        elif job.get("mode") == "scale":
+            result = scale(job)
         else:
             result = {"ok": False, "error": "unknown mode"}
     except MemoryError:
