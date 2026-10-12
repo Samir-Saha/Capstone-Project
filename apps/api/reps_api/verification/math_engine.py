@@ -133,26 +133,7 @@ def _fill(template: str | None, values: dict[str, int], wrap: bool) -> str | Non
             raise UnsupportedExpression(f"template uses undeclared parameter '{name}'")
         return f"({values[name]})" if wrap else str(values[name])
 
-    if not wrap:
-        template = fill_computed(template, values)
     return re.sub(r"\{([a-z][a-z0-9]{0,7})\}", sub, template)
-
-
-def _fmt_number(value: sp.Expr) -> str:
-    v = float(value)
-    if abs(v - round(v)) < 1e-9:
-        return str(int(round(v)))
-    return f"{v:.4g}"
-
-
-def fill_computed(text: str, values: dict[str, int]) -> str:
-    """Replace {=expr} with its value, e.g. "{=mu - k*sd}" -> "149". Display text only."""
-
-    def sub(m: re.Match[str]) -> str:
-        expr = re.sub(r"\b([a-z][a-z0-9]{0,7})\b", lambda n: f"({values[n.group(1)]})" if n.group(1) in values else n.group(1), m.group(1))
-        return _fmt_number(parse_math(expr, ()))
-
-    return re.sub(r"\{=([^{}]+)\}", sub, text)
 
 
 def instantiate(spec: MathProblemSpec, seed: int) -> MathInstance:

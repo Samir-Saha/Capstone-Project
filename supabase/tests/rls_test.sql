@@ -77,7 +77,7 @@ do $$ begin
 end $$;
 
 -- Alice can create a course for herself but not for Bob
-insert into courses (name) values ('Physics 203');
+insert into courses (name) values ('Kinematics');
 do $$ begin
   begin
     insert into courses (owner_id, name) values ('00000000-0000-0000-0000-00000000000b', 'Planted');

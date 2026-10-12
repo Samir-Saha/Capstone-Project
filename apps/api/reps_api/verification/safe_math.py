@@ -43,10 +43,6 @@ FUNCTIONS: dict[str, object] = {
     "sqrt": sp.sqrt,
     "Abs": sp.Abs,
     "abs": sp.Abs,
-    # statistics
-    "binomial": sp.binomial,
-    "factorial": sp.factorial,
-    "erf": sp.erf,
 }
 CONSTANTS: dict[str, object] = {"pi": sp.pi, "E": sp.E, "e": sp.E, "oo": sp.oo, "inf": sp.oo}
 
