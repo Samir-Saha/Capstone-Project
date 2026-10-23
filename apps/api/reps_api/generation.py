@@ -79,9 +79,26 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+def _spread(chunks: list, budget: int) -> list:
+    """Chunks that fit the budget, sampled evenly across all the material rather than only the start."""
+    if sum(len(c.text) for c in chunks) <= budget:
+        return chunks
+    avg = max(1, sum(len(c.text) for c in chunks) // len(chunks))
+    k = max(1, budget // avg)
+    step = len(chunks) / k
+    picked = [chunks[min(len(chunks) - 1, int(i * step))] for i in range(k)]
+    out, total = [], 0
+    for c in picked:
+        if total + len(c.text) > budget:
+            break
+        out.append(c)
+        total += len(c.text)
+    return out
+
+
 def build_prompt(name: str, extraction: Extraction) -> str:
     parts, total = [], 0
-    for c in extraction.chunks:
+    for c in _spread(extraction.chunks, MAX_SOURCE_CHARS):
         if total + len(c.text) > MAX_SOURCE_CHARS:
             break
         parts.append(f'<chunk index="{c.index}" pages="{c.page_start}-{c.page_end}">\n<untrusted>{c.text}</untrusted>\n</chunk>')

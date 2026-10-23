@@ -230,7 +230,7 @@ export type FightResults = {
 };
 
 export type UploadResult = {
-  preview: { filename: string; page_count: number; char_count: number; chunks: number; sample: { pages: number[]; text: string }[] };
+  preview: { filename: string; files?: { name: string; pages: number }[]; page_count: number; char_count: number; chunks: number; sample: { pages: number[]; text: string }[] };
   ai_available: boolean;
   job: Job | null;
   message: string;
@@ -471,9 +471,9 @@ export const api = {
   progress: () => request<ProgressData>("/api/progress"),
   markSeen: (keys: string[]) => post<{ ok: boolean }>("/api/achievements/seen", { keys }),
   courses: () => request<Course[]>("/api/exam/courses"),
-  uploadCourse: (file: File, name: string) => {
+  uploadCourse: (files: File[], name: string) => {
     const form = new FormData();
-    form.append("file", file);
+    for (const f of files) form.append("files", f);
     form.append("name", name);
     return upload<UploadResult>("/api/exam/courses/upload", form);
   },

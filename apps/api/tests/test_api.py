@@ -73,11 +73,37 @@ def test_arena_hides_hidden_tests_and_awards_xp_once(client):
 def test_upload_without_ai_extracts_and_explains(client):
     doc = pymupdf.open()
     doc.new_page().insert_textbox(pymupdf.Rect(50, 50, 550, 800), "Limits describe behavior near a point. " * 30, fontsize=10)
-    r = client.post("/api/exam/courses/upload", files={"file": ("notes.pdf", doc.tobytes(), "application/pdf")}, data={"name": "My class"})
+    r = client.post("/api/exam/courses/upload", files={"files": ("notes.pdf", doc.tobytes(), "application/pdf")}, data={"name": "My class"})
     body = r.json()
     assert r.status_code == 200 and body["ai_available"] is False and body["preview"]["page_count"] == 1
-    bad = client.post("/api/exam/courses/upload", files={"file": ("x.pdf", b"nope", "application/pdf")}, data={"name": "x"})
+    bad = client.post("/api/exam/courses/upload", files={"files": ("x.pdf", b"nope", "application/pdf")}, data={"name": "x"})
     assert bad.status_code == 422
+
+
+def test_upload_many_pdfs_into_one_course(client):
+    def pdf(text, pages):
+        doc = pymupdf.open()
+        for _ in range(pages):
+            doc.new_page().insert_textbox(pymupdf.Rect(50, 50, 550, 800), text * 30, fontsize=10)
+        return doc.tobytes()
+
+    files = [
+        ("files", ("week1.pdf", pdf("Limits describe behavior near a point. ", 2), "application/pdf")),
+        ("files", ("week2.pdf", pdf("Derivatives measure rates of change. ", 3), "application/pdf")),
+    ]
+    body = client.post("/api/exam/courses/upload", files=files, data={"name": "Calc"}).json()
+    assert body["preview"]["page_count"] == 5 and body["preview"]["filename"] == "2 PDFs"
+    assert [f["name"] for f in body["preview"]["files"]] == ["week1.pdf", "week2.pdf"]
+
+
+def test_prompt_samples_across_all_material():
+    from reps_api.generation import MAX_SOURCE_CHARS, build_prompt
+    from reps_api.ingest.pdf import Chunk, Extraction
+
+    chunks = [Chunk(index=i, page_start=i + 1, page_end=i + 1, text=f"[file{i // 50}.pdf] " + "x" * 1000) for i in range(200)]
+    prompt = build_prompt("Big", Extraction(pages=[], chunks=chunks, page_count=200, text_pages=200, char_count=200_000))
+    assert len(prompt) < MAX_SOURCE_CHARS + 5000
+    assert all(f"[file{k}.pdf]" in prompt for k in range(4))  # the last files are represented, not only the first
 
 
 def test_interview_over_http(client):

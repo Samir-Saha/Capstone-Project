@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Play, ShieldCheck, Trophy } from "lucide-react";
+import { FileUp, Play, ShieldCheck, Trophy, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BossArt } from "@/components/BossArt";
@@ -85,8 +85,10 @@ function BossCard({ course }: { course: Course }) {
   );
 }
 
+const MAX_FILES = 30;
+
 function UploadPanel({ onCourse }: { onCourse: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -109,30 +111,38 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
     return () => clearTimeout(t);
   }, [job, onCourse]);
 
-  const pick = (f: File | undefined) => {
-    if (!f) return;
-    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
-      setError("Upload a PDF. Slides and notes can be exported to PDF first.");
+  const pick = (list: FileList | null | undefined) => {
+    if (!list?.length) return;
+    const incoming = Array.from(list);
+    const notPdf = incoming.find((f) => f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf"));
+    if (notPdf) {
+      setError(`${notPdf.name} isn't a PDF. Slides and notes can be exported to PDF first.`);
       return;
     }
-    if (f.size > 25 * 1024 * 1024) {
-      setError("That PDF is over 25 MB. Split it and upload the parts.");
+    const big = incoming.find((f) => f.size > 25 * 1024 * 1024);
+    if (big) {
+      setError(`${big.name} is over 25 MB. Split it and upload the parts.`);
       return;
     }
     setError(null);
-    setFile(f);
-    if (!name) setName(f.name.replace(/\.pdf$/i, "").slice(0, 60));
+    setFiles((prev) => {
+      const merged = [...prev, ...incoming.filter((f) => !prev.some((p) => p.name === f.name && p.size === f.size))].slice(0, MAX_FILES);
+      if (prev.length + incoming.length > MAX_FILES) setError(`Up to ${MAX_FILES} PDFs per boss. The first ${MAX_FILES} are kept.`);
+      return merged;
+    });
+    if (!name) setName(incoming[0]!.name.replace(/\.pdf$/i, "").slice(0, 60));
+    if (input.current) input.current.value = "";
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !name.trim()) return;
+    if (!files.length || !name.trim()) return;
     setBusy(true);
     setError(null);
     setResult(null);
     setJob(null);
     try {
-      const r = await api.uploadCourse(file, name.trim());
+      const r = await api.uploadCourse(files, name.trim());
       setResult(r);
       setJob(r.job);
     } catch (err) {
@@ -148,7 +158,7 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
         Turn your notes into a boss
       </h2>
       <p className="mt-1 max-w-2xl text-sm text-muted">
-        Upload lecture slides or notes as a PDF. Reps pulls out the topics, drafts computational questions that quote your material, and keeps only the ones
+        Upload every PDF for the class at once: lecture notes, slides, study guides. Reps pulls out the topics across all of them, drafts computational questions that quote your material, and keeps only the ones
         that pass verification.
       </p>
       <form onSubmit={submit} className="mt-5 grid gap-4 md:grid-cols-[1fr_280px]">
@@ -161,24 +171,37 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
           onDrop={(e) => {
             e.preventDefault();
             setDrag(false);
-            pick(e.dataTransfer.files[0]);
+            pick(e.dataTransfer.files);
           }}
           className={`flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-panel border-2 border-dashed p-6 text-center transition ${
             drag ? "border-violet bg-violet/10" : "border-line"
           }`}
         >
           <FileUp size={28} className="text-violet-soft" aria-hidden />
-          {file ? (
-            <p>
-              <span className="font-medium">{file.name}</span> <span className="text-muted">({(file.size / 1024 / 1024).toFixed(1)} MB)</span>
-            </p>
+          {files.length ? (
+            <ul className="w-full max-w-md space-y-1.5 text-left text-sm">
+              {files.map((f) => (
+                <li key={f.name + f.size} className="flex items-center gap-2 rounded-chip bg-raised/70 px-3 py-1.5">
+                  <span className="min-w-0 flex-1 truncate font-medium">{f.name}</span>
+                  <span className="shrink-0 text-muted">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-chip text-muted hover:bg-line hover:text-text"
+                    onClick={() => setFiles((xs) => xs.filter((x) => x !== f))}
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X size={14} aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
           ) : (
-            <p className="text-muted">Drop a PDF here (text PDFs, up to 25 MB)</p>
+            <p className="text-muted">Drop all your PDFs here: lecture notes, slides, study guides (up to {MAX_FILES}, 25 MB each)</p>
           )}
           <button type="button" className="btn-ghost mt-1 px-3 py-1.5 text-sm" onClick={() => input.current?.click()}>
-            Choose a file
+            {files.length ? "Add more PDFs" : "Choose PDFs"}
           </button>
-          <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
+          <input ref={input} type="file" multiple accept="application/pdf,.pdf" className="sr-only" onChange={(e) => pick(e.target.files)} />
         </div>
         <div className="flex flex-col gap-3">
           <div>
@@ -187,8 +210,8 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
             </label>
             <input id="course-name" className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Calc 2, midterm 1" required />
           </div>
-          <button type="submit" className="btn-primary mt-auto" disabled={!file || !name.trim() || busy}>
-            {busy ? "Reading the PDF" : "Build the boss"}
+          <button type="submit" className="btn-primary mt-auto" disabled={!files.length || !name.trim() || busy}>
+            {busy ? `Reading ${files.length === 1 ? "the PDF" : `${files.length} PDFs`}` : "Build the boss"}
           </button>
         </div>
       </form>
@@ -200,7 +223,8 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
       {result && (
         <div className="mt-5 rounded-chip border border-line bg-ink/60 p-4 text-sm">
           <p>
-            Read <strong>{result.preview.page_count}</strong> pages ({result.preview.char_count.toLocaleString()} characters) from {result.preview.filename}.
+            Read <strong>{result.preview.page_count}</strong> pages ({result.preview.char_count.toLocaleString()} characters) from {result.preview.filename}
+            {result.preview.files && result.preview.files.length > 1 && <span className="text-muted">: {result.preview.files.map((f) => `${f.name} (${f.pages} pp.)`).join(", ")}</span>}.
           </p>
           {result.preview.sample[0] && (
             <blockquote className="mt-3 border-l-2 border-violet/60 pl-3 text-muted">

@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import achievements, arena, exam, generation, interview, party, player, progress
-from .ingest.pdf import MAX_BYTES, ExtractionError, extract_pdf
+from .ingest.pdf import MAX_BYTES, ExtractionError, combine, extract_pdf
 from .llm import llm_from_env
 from .store import get_store
 from .tutor.knowledge_tracing import MODEL_VERSION
@@ -36,6 +36,7 @@ from .verification.timeouts import VerificationTimeout, run_with_timeout
 
 logging.basicConfig(level=logging.INFO, format='{"level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}')
 log = logging.getLogger("reps.api")
+MAX_UPLOAD_FILES = 30
 
 
 def _warm_up() -> None:
@@ -179,14 +180,20 @@ def courses() -> list[dict[str, Any]]:
 
 
 @app.post("/api/exam/courses/upload")
-async def upload_course(file: UploadFile = File(...), name: str = Form(..., min_length=1, max_length=80)) -> dict[str, Any]:
-    data = await _read_upload(file)
-    try:
-        extraction = extract_pdf(data)
-    except ExtractionError as err:
-        raise HTTPException(422, detail=str(err)) from err
+async def upload_course(files: list[UploadFile] = File(...), name: str = Form(..., min_length=1, max_length=80)) -> dict[str, Any]:
+    if len(files) > MAX_UPLOAD_FILES:
+        raise HTTPException(413, detail=f"Up to {MAX_UPLOAD_FILES} PDFs at a time.")
+    named = []
+    for f in files:
+        fname = re.sub(r"[^\w.\- ]", "_", f.filename or "upload.pdf")[:120]
+        try:
+            named.append((fname, extract_pdf(await _read_upload(f))))
+        except ExtractionError as err:
+            raise HTTPException(422, detail=f"{fname}: {err}") from err
+    extraction = combine(named)
     preview = {
-        "filename": re.sub(r"[^\w.\- ]", "_", file.filename or "upload.pdf")[:120],
+        "filename": named[0][0] if len(named) == 1 else f"{len(named)} PDFs",
+        "files": [{"name": n, "pages": ex.page_count} for n, ex in named],
         "page_count": extraction.page_count,
         "char_count": extraction.char_count,
         "chunks": len(extraction.chunks),

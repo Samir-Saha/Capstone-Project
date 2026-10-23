@@ -112,3 +112,23 @@ def chunk_pages(pages: list[Page], target: int = CHUNK_TARGET, overlap: int = CH
 
 def _make_chunk(index: int, buf: list[tuple[int, str]]) -> Chunk:
     return Chunk(index=index, page_start=buf[0][0], page_end=buf[-1][0], text="\n\n".join(p for _, p in buf))
+
+
+def combine(named: list[tuple[str, Extraction]]) -> Extraction:
+    """Merge several PDFs into one source. Pages are numbered straight through, and each chunk names its file."""
+    pages: list[Page] = []
+    chunks: list[Chunk] = []
+    offset = 0
+    for name, ex in named:
+        label = f"[{name}] " if len(named) > 1 else ""
+        pages += [Page(number=pg.number + offset, text=pg.text) for pg in ex.pages]
+        for c in ex.chunks:
+            chunks.append(Chunk(index=len(chunks), page_start=c.page_start + offset, page_end=c.page_end + offset, text=label + c.text))
+        offset += ex.page_count
+    return Extraction(
+        pages=pages,
+        chunks=chunks,
+        page_count=sum(ex.page_count for _, ex in named),
+        text_pages=sum(ex.text_pages for _, ex in named),
+        char_count=sum(ex.char_count for _, ex in named),
+    )
