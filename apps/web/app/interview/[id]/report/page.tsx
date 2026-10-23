@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Check, Ruler, X } from "lucide-react";
+import { Bot, Check, Minus, Ruler, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -171,6 +171,50 @@ export default function Report() {
           levels. Browser speech recognition often drops “um” and “uh”, so filler counts can run low.
         </p>
       </section>
+
+      {rep.intro && (
+        <section className="panel overflow-hidden p-0" aria-labelledby="intro-title">
+          <div className="grid gap-0 md:grid-cols-[260px_1fr]">
+            <div className="flex flex-col items-center justify-center gap-2 border-b border-line bg-gradient-to-b from-xp/15 to-transparent p-8 md:border-b-0 md:border-r">
+              <p id="intro-title" className="text-sm text-muted">
+                Tell me about yourself
+              </p>
+              <p className={`font-display text-7xl font-bold tabular-nums ${rep.intro.score >= 85 ? "text-heal" : rep.intro.score >= 65 ? "text-xp" : "text-hp"}`}>
+                {rep.intro.score}
+              </p>
+              <p className="font-display text-lg font-semibold">{rep.intro.grade}</p>
+              <p className="text-center text-xs text-muted">Structure found: {rep.intro.structure}</p>
+            </div>
+            <div className="p-6">
+              <ul className="space-y-3">
+                {rep.intro.items.map((i) => (
+                  <li key={i.key} className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        i.ok === null ? "bg-raised text-muted" : i.ok ? "bg-heal/20 text-heal" : "bg-hp/20 text-hp"
+                      }`}
+                      aria-label={i.ok === null ? "Not checked" : i.ok ? "Passed" : "Missed"}
+                    >
+                      {i.ok === null ? <Minus size={14} aria-hidden /> : i.ok ? <Check size={14} aria-hidden /> : <X size={14} aria-hidden />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between gap-3">
+                        <span className="font-medium">{i.label}</span>
+                        <span className="shrink-0 tabular-nums text-sm text-muted">{i.ok === null ? "not scored" : `${i.ok ? i.points : 0}/${i.points}`}</span>
+                      </div>
+                      <p className="text-sm text-muted">{i.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-5 rounded-chip border border-xp/40 bg-xp/10 px-4 py-3 text-sm">
+                <span className="font-semibold text-xp">Next take: </span>
+                {rep.intro.next_step}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {rep.ai_error && <ErrorNote message={rep.ai_error} />}
 

@@ -145,9 +145,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 </div>
               </>
             )}
+            <Link
+              href="/progress"
+              className={`flex h-11 w-11 items-center justify-center rounded-chip md:hidden ${pathname.startsWith("/progress") ? "text-violet-soft" : "text-muted"} hover:bg-raised hover:text-text`}
+              aria-label="Progress"
+            >
+              <LineChart size={20} aria-hidden />
+            </Link>
             <button
               type="button"
-              className="rounded-chip p-2 text-muted hover:bg-raised hover:text-text"
+              className="flex h-11 w-11 items-center justify-center rounded-chip text-muted hover:bg-raised hover:text-text"
               onClick={() => {
                 setSoundEnabled(!sound);
                 setSound(!sound);
@@ -173,11 +180,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 backdrop-blur md:hidden" aria-label="Main">
-          {NAV.map(({ href, label, icon: Icon, match }) => (
+          {NAV.filter((n) => n.href !== "/progress").map(({ href, label, icon: Icon, match }) => (
             <Link
               key={href}
               href={href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${match(pathname) ? "text-violet-soft" : "text-muted"}`}
+              aria-current={match(pathname) ? "page" : undefined}
+              className={`flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors ${match(pathname) ? "text-violet-soft" : "text-muted active:text-text"}`}
             >
               <Icon size={20} aria-hidden />
               {label}

@@ -29,7 +29,7 @@ from .store import Store, dumps, loads, new_id, now_iso
 log = logging.getLogger("reps.interview")
 
 Role = Literal["software", "quant", "ai_ml", "general"]
-Kind = Literal["behavioral", "technical", "mixed"]
+Kind = Literal["behavioral", "technical", "mixed", "intro"]
 
 ROLE_LABELS = {
     "software": "Software engineering",
@@ -227,7 +227,12 @@ class StartInterview(BaseModel):
     resume_id: str | None = None
 
 
+INTRO_QUESTION = "Tell me about yourself."
+
+
 def _plan(req: StartInterview, claims: list[dict[str, Any]], rng: random.Random, store: Store) -> list[dict[str, Any]]:
+    if req.kind == "intro":
+        return [{"kind": "intro", "text": INTRO_QUESTION, "tip": "Aim for 60 to 90 seconds: who you are now, what you've done, and why this role."}]
     plan: list[dict[str, Any]] = []
     n = req.length
     technical = 1 if req.kind == "mixed" else (n if req.kind == "technical" else 0)
@@ -403,6 +408,92 @@ def checks(answer: AnswerIn, kind: str) -> dict[str, Any]:
     return out
 
 
+# ------------------------------------------------------------------ "tell me about yourself"
+
+PRESENT_RE = re.compile(r"\b(i'?m|i am|currently|right now|these days|studying|majoring|a (junior|senior|sophomore|freshman)|student at)\b", re.I)
+PAST_RE = re.compile(
+    r"\b(previously|before that|last (summer|year|semester)|interned|internship|worked|built|led|founded|started|created|developed|shipped|launched|managed|taught)\b",
+    re.I,
+)
+FUTURE_RE = re.compile(
+    r"\b(looking (for|to)|excited|want to|hoping to|next|this role|this position|your team|the team here|goal|i'?d love|interested in|that'?s why)\b", re.I
+)
+
+
+def grade_intro(text: str, metrics: dict[str, Any], resume_terms: list[str]) -> dict[str, Any]:
+    """Rubric for a pitch: present, past, future, proof, tie to the resume, length, delivery. Every item is a check on what was said."""
+    words = len(_words(text))
+    low = text.lower()
+    duration = metrics.get("duration_s")
+    voiced = duration is not None
+    if voiced:
+        length_ok = 45 <= duration <= 120
+        length_detail = f"{round(duration)} seconds" + ("" if length_ok else (", aim for 60 to 90" if duration < 45 else ", trim to under 2 minutes"))
+    else:
+        length_ok = 110 <= words <= 300
+        length_detail = f"{words} words" + ("" if length_ok else (", aim for about 150 to 250" if words < 110 else ", trim it to under 300"))
+    fpm = metrics.get("fillers_per_min")
+    fillers = metrics.get("filler_total", 0)
+    delivery_ok = (fpm is not None and fpm <= 4) if voiced and fpm is not None else fillers <= 3
+    delivery_detail = (f"{fpm} filler words per minute" if fpm is not None else f"{fillers} filler words") + ("" if delivery_ok else ", cut the um/like/you know")
+    if metrics.get("wpm"):
+        delivery_detail += f", {metrics['wpm']} words per minute"
+    hits = [t for t in resume_terms if t and re.search(rf"(?<![a-z]){re.escape(t.lower())}(?![a-z])", low)]
+    items = [
+        {
+            "key": "present",
+            "label": "Present: who you are now",
+            "points": 15,
+            "ok": bool(PRESENT_RE.search(text)),
+            "detail": "Open with where you are today: school, year, major or current role.",
+        },
+        {
+            "key": "past",
+            "label": "Past: what you've done",
+            "points": 20,
+            "ok": bool(PAST_RE.search(text)),
+            "detail": "Name one or two things you built, led or worked on.",
+        },
+        {
+            "key": "future",
+            "label": "Future: why this role",
+            "points": 20,
+            "ok": bool(FUTURE_RE.search(text)),
+            "detail": "Close with what you want next and why it's this team.",
+        },
+        {
+            "key": "proof",
+            "label": "Proof: a specific number",
+            "points": 15,
+            "ok": bool(NUMBERISH.search(text)),
+            "detail": "One number makes it real: users, percent faster, people led.",
+        },
+        {
+            "key": "resume",
+            "label": "Ties to your resume",
+            "points": 10,
+            "ok": bool(hits) if resume_terms else None,
+            "detail": (f"Mentioned {', '.join(hits[:4])}" if hits else "Mention something from your resume by name.")
+            if resume_terms
+            else "Attach a resume to check this.",
+        },
+        {"key": "length", "label": "Length", "points": 10, "ok": length_ok, "detail": length_detail},
+        {"key": "delivery", "label": "Delivery", "points": 10, "ok": delivery_ok, "detail": delivery_detail},
+    ]
+    scored = [i for i in items if i["ok"] is not None]
+    possible = sum(i["points"] for i in scored)
+    earned = sum(i["points"] for i in scored if i["ok"])
+    score = round(100 * earned / possible) if possible else 0
+    order = [i for i in ("present", "past", "future") if next(x for x in items if x["key"] == i)["ok"]]
+    return {
+        "score": score,
+        "grade": "Strong" if score >= 85 else "Solid" if score >= 65 else "Needs work",
+        "items": items,
+        "structure": " → ".join(order) if order else "none found",
+        "next_step": next((i["detail"] for i in items if i["ok"] is False), "Record it once more and keep it this tight."),
+    }
+
+
 def follow_up(item: dict[str, Any], chk: dict[str, Any]) -> str | None:
     if item["kind"] == "resume" and not chk.get("explains_measurement"):
         return "How did you measure that result? What was the number before, and what was it after?"
@@ -430,6 +521,12 @@ def submit(store: Store, session_id: str, answer: AnswerIn) -> dict[str, Any]:
 
     metrics = measure(answer)
     chk = checks(answer, item["kind"])
+    if item["kind"] == "intro":
+        terms: list[str] = []
+        if s["resume_id"]:
+            view = resume_view(store, s["resume_id"])
+            terms = list(view.get("technologies") or [])
+        chk["intro"] = grade_intro(answer.transcript, metrics, terms)
     if item["kind"] == "technical":
         if answer.code:
             result = arena.grade(store, item["slug"], answer.code, "python", submit=True)
@@ -439,7 +536,7 @@ def submit(store: Store, session_id: str, answer: AnswerIn) -> dict[str, Any]:
 
     # Adaptive follow-up: at most one per original question, two per interview.
     already = sum(1 for p in plan if p["kind"] == "follow_up")
-    fu = follow_up(item, chk) if item["kind"] != "follow_up" and already < 2 else None
+    fu = follow_up(item, chk) if item["kind"] not in ("follow_up", "intro") and already < 2 else None
     if fu:
         plan.insert(answer.index + 1, {"kind": "follow_up", "text": fu, "parent": answer.index})
 
@@ -486,7 +583,7 @@ STAR_PROMPT_VERSION = "star-eval-1"
 
 
 def ai_star(provider: LLMProvider, turns: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
-    scored = [t for t in turns if t["question_source"] != "technical"]
+    scored = [t for t in turns if t["question_source"] not in ("technical", "intro")]
     if not scored:
         return {}
     body = "\n\n".join(f'<answer index="{t["idx"]}">\nQuestion: {t["question"]}\n<untrusted>{t["answer"]}</untrusted>\n</answer>' for t in scored)
@@ -585,4 +682,5 @@ def report(store: Store, session_id: str) -> dict[str, Any]:
         "ai_scored": ai_scored,
         "ai_available": llm_from_env() is not None,
         "focus": focus,
+        "intro": next((t["checks"]["intro"] for t in turns if t["checks"].get("intro")), None),
     }

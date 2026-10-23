@@ -24,7 +24,7 @@ body {
 
 body {
   font-family: "IBM Plex Sans", system-ui, sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   /* faint blueprint grid: the floor of the training hall */
@@ -49,7 +49,7 @@ body {
     @apply rounded-panel border border-line bg-surface;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-chip px-4 py-2 font-display text-[15px] font-semibold tracking-wide transition-[transform,background,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-chip px-4 py-2 font-display text-[15px] font-semibold tracking-wide transition-[transform,background,box-shadow] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
   .btn:not(:disabled):active {
     transform: translateY(1px) scale(0.98);

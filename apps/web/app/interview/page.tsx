@@ -15,6 +15,7 @@ const ROLES = [
 ];
 
 const KINDS = [
+  { id: "intro", label: "Tell me about yourself", note: "One 60–90 second pitch, graded on a 7-point rubric" },
   { id: "behavioral", label: "Behavioral", note: "STAR stories, resume follow-ups" },
   { id: "mixed", label: "Mixed", note: "Behavioral plus one coding question" },
   { id: "technical", label: "Technical", note: "Coding questions you talk through" },
@@ -97,7 +98,7 @@ export default function InterviewSetup() {
 
         <fieldset>
           <legend className="h-display mb-3 text-lg">Format</legend>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {KINDS.map((k) => (
               <label
                 key={k.id}
@@ -109,7 +110,7 @@ export default function InterviewSetup() {
               </label>
             ))}
           </div>
-          {kind !== "technical" && (
+          {kind !== "technical" && kind !== "intro" && (
             <div className="mt-4 flex items-center gap-4">
               <label htmlFor="length" className="text-sm text-muted">
                 Questions

@@ -13,6 +13,7 @@ const SOURCE_LABEL: Record<string, string> = {
   resume: "From your resume",
   follow_up: "Follow-up",
   technical: "Coding",
+  intro: "Your pitch",
 };
 
 const VOICE_KEY = "reps.interviewer-voice";
@@ -262,6 +263,11 @@ export default function Room() {
           <div className="mt-6" aria-live="polite">
             <span className={`chip ${q.kind === "follow_up" ? "border-xp/60 text-xp" : ""}`}>{SOURCE_LABEL[q.kind]}</span>
             <p className="mt-3 font-display text-xl leading-snug">{q.text}</p>
+            {q.kind === "intro" && (
+              <p className="mt-2 text-sm text-muted">
+                60 to 90 seconds. Where you are now, one or two things you've done (with a number), and why this role.
+              </p>
+            )}
             {voiceOn && (
               <button type="button" className="mt-3 text-sm text-muted hover:text-text" onClick={() => say(q.text)}>
                 Repeat the question
@@ -404,7 +410,7 @@ export default function Room() {
                   className="field min-h-[200px] leading-relaxed"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Situation, task, what you did, and the result."
+                  placeholder={q.kind === "intro" ? "I'm a junior at… Last summer I… I'm excited about this role because…" : "Situation, task, what you did, and the result."}
                 />
               </div>
             )}

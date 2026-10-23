@@ -300,7 +300,7 @@ export type Resume = { id: string; filename: string; extraction: string; claims:
 
 export type InterviewQuestion = {
   index: number;
-  kind: "behavioral" | "resume" | "technical" | "follow_up";
+  kind: "behavioral" | "resume" | "technical" | "follow_up" | "intro";
   text: string;
   claim?: string;
   slug?: string;
@@ -389,6 +389,15 @@ export type InterviewReport = {
   focus: string[];
   ai_error?: string | null;
   xp?: number;
+  intro: IntroGrade | null;
+};
+
+export type IntroGrade = {
+  score: number;
+  grade: string;
+  structure: string;
+  next_step: string;
+  items: { key: string; label: string; points: number; ok: boolean | null; detail: string }[];
 };
 
 export type InterviewHistoryItem = { id: string; role: string; kind: string; status: string; started_at: string; completed_at: string | null; answers: number };

@@ -20,6 +20,7 @@ dev = ["pytest>=8", "ruff>=0.6"]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+# Only the app is a package; eval/ and tests/ are scripts run from this folder.
 [tool.setuptools.packages.find]
 include = ["reps_api*"]
 
@@ -33,10 +34,3 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["B008", "B905", "UP042"]  # FastAPI File()/Depends() idiom; zips are length-checked; str+Enum kept for pydantic
-
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages.find]
-include = ["reps_api*"]
