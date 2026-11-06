@@ -115,9 +115,9 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
   const pick = (list: FileList | null | undefined) => {
     if (!list?.length) return;
     const incoming = Array.from(list);
-    const notPdf = incoming.find((f) => !/\.(pdf|txt|md|markdown)$/i.test(f.name));
+    const notPdf = incoming.find((f) => !/\.(pdf|txt|md|markdown|docx|pptx)$/i.test(f.name));
     if (notPdf) {
-      setError(`${notPdf.name} isn't a PDF or text file. Export slides or Word docs to PDF, or paste the text below.`);
+      setError(`${notPdf.name} isn't supported. Use PDF, Word (.docx), PowerPoint (.pptx) or text files, or paste the text below.`);
       return;
     }
     const big = incoming.find((f) => f.size > 25 * 1024 * 1024);
@@ -131,7 +131,7 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
       if (prev.length + incoming.length > MAX_FILES) setError(`Up to ${MAX_FILES} files per boss. The first ${MAX_FILES} are kept.`);
       return merged;
     });
-    if (!name) setName(incoming[0]!.name.replace(/\.(pdf|txt|md|markdown)$/i, "").slice(0, 60));
+    if (!name) setName(incoming[0]!.name.replace(/\.(pdf|txt|md|markdown|docx|pptx)$/i, "").slice(0, 60));
     if (input.current) input.current.value = "";
   };
 
@@ -159,7 +159,7 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
         Turn your notes into a boss
       </h2>
       <p className="mt-1 max-w-2xl text-sm text-muted">
-        Drop in every PDF or text file for the class, or paste your notes. Each question is built from a sentence in your material and shows the page it came from. With an AI key, Reps also
+        Drop in every PDF, slide deck, Word doc or text file for the class, or paste your notes. Each question is built from a sentence in your material and shows the page it came from. With an AI key, Reps also
         writes computational problems and keeps only the ones SymPy verifies.
       </p>
       <form onSubmit={submit} className="mt-5 grid gap-4 md:grid-cols-[1fr_280px]">
@@ -197,12 +197,12 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
               ))}
             </ul>
           ) : (
-            <p className="text-muted">Drop PDFs or .txt files here: lecture notes, slides, study guides (up to {MAX_FILES}, 25 MB each)</p>
+            <p className="text-muted">Drop PDFs, slides (.pptx), Word docs (.docx) or text files here (up to {MAX_FILES}, 25 MB each)</p>
           )}
           <button type="button" className="btn-ghost mt-1 px-3 py-1.5 text-sm" onClick={() => input.current?.click()}>
             {files.length ? "Add more files" : "Choose files"}
           </button>
-          <input ref={input} type="file" multiple accept="application/pdf,.pdf,.txt,.md,text/plain,text/markdown" className="sr-only" onChange={(e) => pick(e.target.files)} />
+          <input ref={input} type="file" multiple accept="application/pdf,.pdf,.txt,.md,.docx,.pptx,text/plain,text/markdown" className="sr-only" onChange={(e) => pick(e.target.files)} />
           <div className="mt-2 w-full max-w-xl text-left">
             <label htmlFor="paste-notes" className="label">
               Or paste notes
@@ -240,6 +240,15 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
             Read <strong>{result.preview.page_count}</strong> pages ({result.preview.char_count.toLocaleString()} characters) from {result.preview.filename}
             {result.preview.files && result.preview.files.length > 1 && <span className="text-muted">: {result.preview.files.map((f) => `${f.name} (${f.pages} pp.)`).join(", ")}</span>}.
           </p>
+          {result.preview.skipped && result.preview.skipped.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xp">
+              {result.preview.skipped.map((f) => (
+                <li key={f.name}>
+                  Skipped {f.name}: {f.reason}
+                </li>
+              ))}
+            </ul>
+          )}
           {result.preview.sample[0] && (
             <blockquote className="mt-3 border-l-2 border-violet/60 pl-3 text-muted">
               <span className="block text-xs">Page {result.preview.sample[0].pages[0]}</span>

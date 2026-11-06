@@ -218,3 +218,34 @@ def test_generation_keeps_only_grounded_verified_templates(store):
     reasons = {r["reason"] for r in store.all("select reason from verification_log where subject = 'generated_template' and status = 'rejected'")}
     assert "source quote not found in the material" in reasons
     assert "generator's claimed answer is wrong" in reasons
+
+
+def test_ai_concept_questions_are_grounded_or_dropped(store):
+    from reps_api.ingest.pdf import extract_text
+
+    notes = (
+        "Cell Biology\n\nOsmosis is the diffusion of water across a selectively permeable membrane. "
+        "A hypertonic solution has a higher solute concentration than the cell, so water leaves the cell. "
+        "Active transport moves molecules against their concentration gradient and requires ATP. "
+        "Enzymes are proteins that speed up chemical reactions by lowering the activation energy."
+    )
+    extraction = extract_text(notes)
+    good = {
+        "topic": "Transport",
+        "question": "In a hypertonic solution, which way does water move?",
+        "answer": "water leaves the cell",
+        "distractors": ["water enters the cell", "water does not move", "solutes leave the cell"],
+        "difficulty": 2,
+        "source_chunk": 0,
+        "source_quote": "A hypertonic solution has a higher solute concentration than the cell, so water leaves the cell.",
+    }
+    made_up = {**good, "question": "What powers the cell?", "answer": "mitochondria", "source_quote": "Mitochondria power the cell."}
+    leaky = {**good, "question": "Does water leave the cell in a hypertonic solution?", "answer": "water leaves the cell"}
+    provider = ScriptedProvider([json.dumps({"boss_name": "x", "topics": [], "no_computational_content": True}), json.dumps({"items": [good, made_up, leaky]})])
+    result = generation.generate_course(store, provider, "Bio", extraction, "job", "doc")
+    assert result["course_id"] and result["concepts"] == 1
+    rows = store.all("select body from templates where course_id = ?", (result["course_id"],))
+    concept = [r for r in rows if "hypertonic solution, which way" in r["body"]]
+    assert len(concept) == 1 and '"form":"mcq"' in concept[0]["body"]
+    reasons = {r["reason"] for r in store.all("select reason from verification_log where method = 'grounded-concept' and status = 'rejected'")}
+    assert reasons == {"source quote not found in the material", "question gives away the answer"}

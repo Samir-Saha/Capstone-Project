@@ -158,7 +158,15 @@ def extract_claims(text: str) -> list[ResumeClaim]:
                 items.append(current)
             current = None
             continue
-        if BULLET.match(line) or ACTION_VERBS.match(stripped):
+        # A bullet, a line starting with an action verb, or (for pasted resumes with no bullets)
+        # a full line with a number in it all start a new claim.
+        if (
+            BULLET.match(line)
+            or ACTION_VERBS.match(stripped)
+            or (
+                current is None and NUMBERISH.search(stripped) and len(stripped.split()) >= 8 and not re.search(r"\b(19|20)\d{2}\b.*\b(19|20)\d{2}\b|gpa", stripped, re.I)
+            )
+        ):
             if current:
                 items.append(current)
             current = BULLET.sub("", line).strip()
@@ -415,7 +423,34 @@ def checks(answer: AnswerIn, kind: str) -> dict[str, Any]:
     }
     if kind == "resume":
         out["explains_measurement"] = bool(MEASURE_WORDS.search(text)) or bool(NUMBERISH.search(text))
+    if kind in ("behavioral", "resume", "follow_up"):
+        out["star"] = star_coverage(text)
     return out
+
+
+STAR_CUES = {
+    "situation": re.compile(
+        r"\b(when i was|while i was|at (my|our|the) (job|internship|company|school)|last (summer|year|semester)|during|back in"
+        r"|the (team|company|clinic|project) (had|was|needed)|there was)\b",
+        re.I,
+    ),
+    "task": re.compile(
+        r"\b(my (job|role|task|goal|responsibility) was|i was (asked|responsible|tasked|in charge)|i needed to|we needed to|the goal was|i had to|my part was)\b", re.I
+    ),
+    "action": re.compile(
+        r"\b(i (built|wrote|designed|created|led|set up|changed|fixed|automated|talked|met|decided|added|used|made|started|organized|proposed|tested|debugged))\b", re.I
+    ),
+    "result": re.compile(
+        r"(\b(as a result|in the end|which (cut|saved|reduced|increased|improved|led)|so (we|it|the)|the result|ended up"
+        r"|that (cut|saved|reduced|increased|improved))\b|\d+ ?%)",
+        re.I,
+    ),
+}
+
+
+def star_coverage(text: str) -> dict[str, bool]:
+    """Rule-based: which STAR parts the answer has a recognizable phrase for. Not a quality score."""
+    return {part: bool(rx.search(text)) for part, rx in STAR_CUES.items()}
 
 
 # ------------------------------------------------------------------ "tell me about yourself"

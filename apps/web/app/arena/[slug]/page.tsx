@@ -7,23 +7,33 @@ import { useCallback, useEffect, useState } from "react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { VerdictView } from "@/components/Verdict";
 import { ErrorNote, Spinner } from "@/components/ui";
-import { api, notifyProgress, type CodeResult, type ProblemDetail } from "@/lib/api";
+import { api, notifyProgress, type CodeLanguage, type CodeResult, type ProblemDetail } from "@/lib/api";
 import { play } from "@/lib/sound";
 
-const draftKey = (slug: string) => `reps.draft.${slug}`;
+const draftKey = (slug: string, lang: CodeLanguage) => (lang === "python" ? `reps.draft.${slug}` : `reps.draft.${slug}.${lang}`);
+const LANG_KEY = "reps.language";
 
-function readDraft(slug: string) {
+function readDraft(slug: string, lang: CodeLanguage) {
   try {
-    return localStorage.getItem(draftKey(slug));
+    return localStorage.getItem(draftKey(slug, lang));
   } catch {
     return null;
   }
+}
+
+function starterFor(p: ProblemDetail, lang: CodeLanguage) {
+  return lang === "javascript" ? (p.starter_code_js ?? "function solve() {\n}\n") : p.starter_code;
+}
+
+function savedFor(p: ProblemDetail, lang: CodeLanguage) {
+  return lang === "javascript" ? (p.saved_code_js ?? null) : p.saved_code;
 }
 
 export default function ProblemPage() {
   const { slug } = useParams<{ slug: string }>();
   const [problem, setProblem] = useState<ProblemDetail | null>(null);
   const [code, setCode] = useState("");
+  const [lang, setLang] = useState<CodeLanguage>("python");
   const [busy, setBusy] = useState<"run" | "submit" | null>(null);
   const [result, setResult] = useState<{ mode: "run" | "submit"; data: CodeResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +41,15 @@ export default function ProblemPage() {
   const load = useCallback(async () => {
     try {
       const p = await api.problem(slug);
+      let l: CodeLanguage = "python";
+      try {
+        l = localStorage.getItem(LANG_KEY) === "javascript" ? "javascript" : "python";
+      } catch {
+        /* default to Python */
+      }
       setProblem(p);
-      setCode(readDraft(slug) ?? p.saved_code ?? p.starter_code);
+      setLang(l);
+      setCode(readDraft(slug, l) ?? savedFor(p, l) ?? starterFor(p, l));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -45,13 +62,26 @@ export default function ProblemPage() {
     if (!problem) return;
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(draftKey(slug), code);
+        localStorage.setItem(draftKey(slug, lang), code);
       } catch {
         /* drafts are a convenience */
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [code, slug, problem]);
+  }, [code, slug, problem, lang]);
+
+  const switchLang = (next: CodeLanguage) => {
+    if (!problem || next === lang) return;
+    try {
+      localStorage.setItem(draftKey(slug, lang), code);
+      localStorage.setItem(LANG_KEY, next);
+    } catch {
+      /* drafts are a convenience */
+    }
+    setLang(next);
+    setCode(readDraft(slug, next) ?? savedFor(problem, next) ?? starterFor(problem, next));
+    setResult(null);
+  };
 
   const go = useCallback(
     async (mode: "run" | "submit") => {
@@ -59,7 +89,7 @@ export default function ProblemPage() {
       setBusy(mode);
       setError(null);
       try {
-        const data = mode === "run" ? await api.run(slug, code) : await api.submit(slug, code);
+        const data = mode === "run" ? await api.run(slug, code, lang) : await api.submit(slug, code, lang);
         setResult({ mode, data });
         play(data.verdict === "accepted" ? "accepted" : "rejected");
         if (mode === "submit") {
@@ -72,7 +102,7 @@ export default function ProblemPage() {
         setBusy(null);
       }
     },
-    [busy, code, slug],
+    [busy, code, slug, lang],
   );
 
   if (error && !problem) return <ErrorNote message={error} onRetry={load} />;
@@ -118,7 +148,7 @@ export default function ProblemPage() {
           {problem.speed_tier && (
             <p className="mt-3 flex items-start gap-2 text-sm text-muted">
               <Zap size={16} className={`mt-0.5 shrink-0 ${problem.fast ? "fill-cyan text-cyan" : "text-cyan"}`} aria-hidden />
-              Speed tier: a passing submission also runs on one large input and must finish within {Math.round(problem.speed_tier.limit_ms)} ms (20× our
+              Speed tier (Python submissions): a passing submission also runs on one large input and must finish within {Math.round(problem.speed_tier.limit_ms)} ms (20× our
               reference on this machine). {problem.fast ? "You've cleared it." : "+15 XP the first time you clear it."}
             </p>
           )}
@@ -147,11 +177,22 @@ export default function ProblemPage() {
       <section className="flex min-h-[640px] flex-col gap-5 lg:min-h-0">
         <div className="panel flex min-h-[340px] flex-1 flex-col overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
-            <span className="font-mono text-sm text-muted">Python 3</span>
+            <label htmlFor="language" className="sr-only">
+              Language
+            </label>
+            <select
+              id="language"
+              value={lang}
+              onChange={(e) => switchLang(e.target.value as CodeLanguage)}
+              className="rounded-chip border border-line bg-ink px-2 py-1 font-mono text-sm text-text"
+            >
+              <option value="python">Python 3</option>
+              <option value="javascript">JavaScript</option>
+            </select>
             <button
               type="button"
               className="ml-2 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
-              onClick={() => setCode(problem.starter_code)}
+              onClick={() => setCode(starterFor(problem, lang))}
               title="Reset to the starter code"
             >
               <RotateCcw size={14} aria-hidden /> Reset
@@ -168,7 +209,14 @@ export default function ProblemPage() {
             </div>
           </div>
           <div className="min-h-0 flex-1">
-            <CodeEditor value={code} onChange={setCode} onRun={() => go("run")} onSubmit={() => go("submit")} label={`Solution for ${problem.title}`} />
+            <CodeEditor
+              value={code}
+              language={lang}
+              onChange={setCode}
+              onRun={() => go("run")}
+              onSubmit={() => go("submit")}
+              label={`Solution for ${problem.title}`}
+            />
           </div>
         </div>
         <div className="panel max-h-[45%] min-h-[150px] overflow-y-auto p-5" aria-live="polite">

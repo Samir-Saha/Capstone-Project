@@ -1,6 +1,6 @@
 "use client";
 
-import { Code2, Flame, Home, LineChart, Mic, Swords, Users, Volume2, VolumeX } from "lucide-react";
+import { Code2, Flame, Home, LineChart, Mic, Settings, Swords, Users, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +15,7 @@ const NAV = [
   { href: "/arena", label: "Arena", icon: Code2, match: (p: string) => p.startsWith("/arena") },
   { href: "/interview", label: "Gauntlet", icon: Mic, match: (p: string) => p.startsWith("/interview") },
   { href: "/progress", label: "Progress", icon: LineChart, match: (p: string) => p.startsWith("/progress") },
+  { href: "/settings", label: "Profile", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ];
 
 function Wordmark() {
@@ -73,7 +74,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
       void refresh();
     };
     window.addEventListener("reps:progress", onProgress);
-    return () => window.removeEventListener("reps:progress", onProgress);
+    const onSound = (e: Event) => setSound(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener("reps:sound", onSound);
+    return () => {
+      window.removeEventListener("reps:progress", onProgress);
+      window.removeEventListener("reps:sound", onSound);
+    };
   }, [refresh]);
 
   const pct = player ? Math.round((player.xp_into_level / player.xp_for_next) * 100) : 0;
@@ -152,6 +158,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               <LineChart size={20} aria-hidden />
             </Link>
+            <Link
+              href="/settings"
+              className={`flex h-11 w-11 items-center justify-center rounded-chip md:hidden ${pathname.startsWith("/settings") ? "text-violet-soft" : "text-muted"} hover:bg-raised hover:text-text`}
+              aria-label="Profile and settings"
+            >
+              <Settings size={20} aria-hidden />
+            </Link>
             <button
               type="button"
               className="flex h-11 w-11 items-center justify-center rounded-chip text-muted hover:bg-raised hover:text-text"
@@ -180,7 +193,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 backdrop-blur md:hidden" aria-label="Main">
-          {NAV.filter((n) => n.href !== "/progress").map(({ href, label, icon: Icon, match }) => (
+          {NAV.filter((n) => n.href !== "/progress" && n.href !== "/settings").map(({ href, label, icon: Icon, match }) => (
             <Link
               key={href}
               href={href}

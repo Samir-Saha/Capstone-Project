@@ -210,3 +210,28 @@ def test_host_leaving_the_lobby_hands_over(client, hub):
             hws.send_json({"type": "leave"})
         room = _until(gws, _state(lambda r: len(r["players"]) == 1))["room"]
         assert room["you"]["is_host"]
+
+
+def test_party_raid_on_a_boss_built_from_notes(client, hub, store):
+    from reps_api import generation
+    from reps_api.ingest.pdf import extract_text
+
+    notes = (
+        "Cell Biology\n\nOsmosis is the diffusion of water across a selectively permeable membrane. "
+        "A hypertonic solution has a higher solute concentration than the cell, so water leaves the cell. "
+        "Active transport moves molecules against their concentration gradient and requires ATP. "
+        "Passive transport does not require ATP because molecules move down their concentration gradient. "
+        "Enzymes are proteins that speed up chemical reactions by lowering the activation energy. "
+        "Each enzyme has an active site that binds a specific substrate."
+    )
+    course_id = generation.generate_course(store, None, "Bio", extract_text(notes), "j", "d")["course_id"]
+    r = client.post("/api/party", json={"course_id": course_id, "name": "Samir"}).json()
+    with _open(client, r["code"], r["token"]) as ws:
+        ws.send_json({"type": "start"})
+        state = _until(ws, _state(lambda s: s["status"] == "active" and s["you"]["question"]))["room"]
+        q = state["you"]["question"]
+        assert q["kind"] == "recall" and q["checks"][0].startswith("quoted from your notes")
+        qid, key = _key(hub, r["code"], r["player_id"])
+        ws.send_json({"type": "answer", "question_id": qid, "answer": key})
+        res = _until(ws, lambda m: m["type"] == "result")
+        assert res["correct"] and res["damage"] > 0 and "From your notes" in res["method"]

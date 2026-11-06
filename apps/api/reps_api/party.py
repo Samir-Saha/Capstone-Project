@@ -26,7 +26,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
-from . import exam
+from . import exam, recall
 from .content.courses import QuestionTemplate
 from .progression import XP_RULES, award
 from .store import Store, dumps, new_id
@@ -66,7 +66,7 @@ class Question:
     difficulty: int
     prompt: str
     latex: str | None
-    task: MathTask
+    task: MathTask | dict[str, Any]
     answer: str
     answer_latex: str | None
     rel_tol: float | None
@@ -85,6 +85,8 @@ class Question:
             "latex": self.latex,
             "answer_format": self.answer_format,
             "checks": self.checks,
+            "kind": self.task.get("kind") if isinstance(self.task, dict) else self.task.kind,
+            "choices": self.task.get("choices") if isinstance(self.task, dict) else None,
         }
 
 
@@ -248,8 +250,8 @@ class PartyHub:
         if topic_ids:
             marks = ",".join("?" * len(topic_ids))
             for row in store.all(f"select id, topic_id, body from templates where topic_id in ({marks})", tuple(topic_ids)):
-                if not row["body"].lstrip().startswith('{"kind":"recall"'):  # party raids use computed questions only for now
-                    templates.setdefault(row["topic_id"], []).append((row["id"], QuestionTemplate.model_validate_json(row["body"])))
+                model = recall.RecallTemplate if recall.is_recall(row["body"]) else QuestionTemplate
+                templates.setdefault(row["topic_id"], []).append((row["id"], model.model_validate_json(row["body"])))
         if not templates:
             raise PartyError(409, "This course has no verified question types yet.")
         room = Room(
@@ -426,6 +428,29 @@ class PartyHub:
         candidates = list(room.templates[topic_id])
         while candidates:
             template_id, tpl = exam._pick_template(candidates, target, player.recent_templates, rng)
+            if isinstance(tpl, recall.RecallTemplate):
+                player.recent_topics.append(topic_id)
+                player.recent_templates.append(template_id)
+                choices = list(tpl.choices)
+                rng.shuffle(choices)
+                pages = ", ".join(str(p) for p in tpl.pages)
+                return Question(
+                    id=new_id(),
+                    topic_id=topic_id,
+                    topic=room.topics[topic_id],
+                    template_id=template_id,
+                    difficulty=tpl.difficulty,
+                    prompt=tpl.prompt,
+                    latex=None,
+                    task={"kind": "recall", "form": tpl.form, "choices": choices, "accept": tpl.accept},
+                    answer=tpl.answer,
+                    answer_latex=None,
+                    rel_tol=None,
+                    seed=0,
+                    answer_format="Pick one." if tpl.form == "mcq" else "Type the missing word or phrase.",
+                    method=f"From your notes (page {pages}): \u201c{tpl.quote}\u201d",
+                    checks=[f"quoted from your notes, page {pages}"],
+                )
             for _ in range(exam.MAX_INSTANCE_TRIES):
                 seed = rng.randrange(1, 2**31)
                 result = exam._verify(tpl.spec, seed, self.use_pool)
@@ -479,7 +504,10 @@ class PartyHub:
 
         player.busy = True
         try:
-            grade, _ = await asyncio.to_thread(exam._grade, q.task, {"answer": q.answer, "seed": q.seed, "rel_tol": q.rel_tol}, text, None, self.use_pool)
+            if isinstance(q.task, dict):
+                grade = recall.grade(q.task, q.answer, text)
+            else:
+                grade, _ = await asyncio.to_thread(exam._grade, q.task, {"answer": q.answer, "seed": q.seed, "rel_tol": q.rel_tol}, text, None, self.use_pool)
         except VerificationTimeout:
             player.busy = False
             return await self.send(player, {"type": "unparseable", "message": "Checking that answer took too long. Try a simpler form."})

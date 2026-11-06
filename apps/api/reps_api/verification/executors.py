@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -28,6 +29,7 @@ from typing import Any, Protocol
 import httpx
 
 HARNESS_PATH = Path(__file__).with_name("harness.py")
+JS_HARNESS_PATH = Path(__file__).with_name("harness.js")
 MARKER = "@@REPS_RESULT@@"
 
 
@@ -58,13 +60,14 @@ def _parse_marker(stdout: str) -> dict[str, Any] | None:
 IS_WINDOWS = sys.platform == "win32"
 
 
-def _posix_limits(cpu_seconds: int, memory_mb: int):
+def _posix_limits(cpu_seconds: int, memory_mb: int, cap_address_space: bool = True):
     import resource  # POSIX only
 
     def apply() -> None:
         resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 1))
         mem = memory_mb * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+        if cap_address_space:  # V8 reserves far more address space than it uses; Node caps its heap itself
+            resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
         resource.setrlimit(resource.RLIMIT_FSIZE, (1024 * 1024, 1024 * 1024))
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
         os.setsid()
@@ -87,9 +90,18 @@ class LocalSubprocessExecutor:
             env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
         else:
             env["PATH"] = "/usr/bin:/bin"
+        js = job.get("language") == "javascript"
+        if js:
+            node = shutil.which("node") or shutil.which("node.exe")
+            if not node:
+                return ExecutionResult(status="unavailable", stderr="Node.js was not found, so JavaScript can't run here.")
+            cmd = [node, f"--max-old-space-size={memory_mb}", str(JS_HARNESS_PATH)]
+            job = {**job, "cpu_seconds": cpu_seconds}
+        else:
+            cmd = [sys.executable, "-I", "-S", str(HARNESS_PATH)]
         extra: dict[str, Any] = {}
         if self.enforce_limits:
-            extra["preexec_fn"] = _posix_limits(cpu_seconds, memory_mb)
+            extra["preexec_fn"] = _posix_limits(cpu_seconds, memory_mb, cap_address_space=not js)
         elif IS_WINDOWS:
             extra["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -97,7 +109,7 @@ class LocalSubprocessExecutor:
         with tempfile.TemporaryDirectory(prefix="reps-run-") as workdir:
             try:
                 proc = subprocess.run(
-                    [sys.executable, "-I", "-S", str(HARNESS_PATH)],
+                    cmd,
                     input=json.dumps(job),
                     capture_output=True,
                     text=True,
@@ -139,6 +151,8 @@ class Judge0Executor:
         self.poll_s = poll_s
 
     def run(self, job: dict[str, Any], cpu_seconds: int = 5, memory_mb: int = 512) -> ExecutionResult:
+        if job.get("language") == "javascript":
+            return ExecutionResult(status="unavailable", stderr="JavaScript runs on the local runner only for now.")
         started = time.perf_counter()
         body = {
             "language_id": self.PYTHON_LANGUAGE_ID,

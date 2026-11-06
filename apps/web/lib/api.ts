@@ -38,6 +38,8 @@ const upload = <T>(path: string, form: FormData) => request<T>(path, { method: "
 
 // ---------------------------------------------------------------- types
 
+export type CodeLanguage = "python" | "javascript";
+
 export type Health = {
   ok: boolean;
   mode: string;
@@ -233,7 +235,7 @@ export type FightResults = {
 };
 
 export type UploadResult = {
-  preview: { filename: string; files?: { name: string; pages: number }[]; page_count: number; char_count: number; chunks: number; sample: { pages: number[]; text: string }[] };
+  preview: { filename: string; files?: { name: string; pages: number }[]; skipped?: { name: string; reason: string }[]; page_count: number; char_count: number; chunks: number; sample: { pages: number[]; text: string }[] };
   ai_available: boolean;
   job: Job | null;
   message: string;
@@ -264,7 +266,9 @@ export type ProblemDetail = Omit<ProblemSummary, "verified_cases"> & {
   examples: { args: unknown[]; expected: unknown }[];
   hidden_tests: number;
   starter_code: string;
+  starter_code_js?: string;
   saved_code: string | null;
+  saved_code_js?: string | null;
   verification: { cases_run: number; method: string; seed: number };
   speed_tier: { limit_ms: number; reference_ms: number } | null;
   fast: boolean;
@@ -342,6 +346,7 @@ export type Checks = {
   result_language: boolean;
   ownership: { i: number; we: number; ok: boolean };
   explains_measurement?: boolean;
+  star?: { situation: boolean; task: boolean; action: boolean; result: boolean };
   code?: { verdict: string; passed?: number; total?: number; hidden_passed?: number; hidden_total?: number; error?: string | null };
 };
 
@@ -427,7 +432,7 @@ export type PartyPlayer = {
   down: boolean;
   connected: boolean;
 };
-export type PartyQuestion = { id: string; topic_id: string; topic: string; difficulty: number; prompt: string; latex: string | null; answer_format: string; checks: string[] };
+export type PartyQuestion = { id: string; topic_id: string; topic: string; difficulty: number; prompt: string; latex: string | null; answer_format: string; checks: string[]; kind?: string; choices?: string[] | null };
 export type PartyEvent = { id: string; kind: "join" | "leave" | "host" | "start" | "hit" | "miss" | "down" | "revive" | "end" | "lobby"; text: string; at: number; player_id?: string; damage?: number };
 export type PartyRoom = {
   code: string;
@@ -496,8 +501,8 @@ export const api = {
 
   problems: () => request<ProblemSummary[]>("/api/coding/problems"),
   problem: (slug: string) => request<ProblemDetail>(`/api/coding/problems/${slug}`),
-  run: (slug: string, code: string) => post<CodeResult>(`/api/coding/problems/${slug}/run`, { code, language: "python" }),
-  submit: (slug: string, code: string) => post<CodeResult>(`/api/coding/problems/${slug}/submit`, { code, language: "python" }),
+  run: (slug: string, code: string, language: CodeLanguage = "python") => post<CodeResult>(`/api/coding/problems/${slug}/run`, { code, language }),
+  submit: (slug: string, code: string, language: CodeLanguage = "python") => post<CodeResult>(`/api/coding/problems/${slug}/submit`, { code, language }),
 
   uploadResume: (file: File) => {
     const form = new FormData();

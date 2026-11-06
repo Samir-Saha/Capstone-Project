@@ -144,11 +144,42 @@ def starter_code(spec: CodingProblemSpec) -> str:
     return f"{spec.signature}:\n    # Write your solution here\n    pass\n"
 
 
+def js_starter_code(spec: CodingProblemSpec) -> str:
+    """function solve(a, b) from def solve(a: list[int], b: int) -> int, with the Python types as a hint."""
+    m = re.match(r"def\s+solve\((.*)\)\s*(?:->\s*(.+))?$", spec.signature.strip())
+    params = []
+    hints = []
+    if m:
+        for part in _split_params(m.group(1)):
+            name, _, typ = part.partition(":")
+            params.append(name.strip())
+            if typ.strip():
+                hints.append(f"{name.strip()}: {typ.strip()}")
+        if m.group(2):
+            hints.append(f"returns {m.group(2).strip()}")
+    hint = f"  // {', '.join(hints)}\n" if hints else ""
+    return f"function solve({', '.join(params)}) {{\n{hint}  // Write your solution here\n}}\n"
+
+
+def _split_params(text: str) -> list[str]:
+    out, depth, cur = [], 0, ""
+    for ch in text:
+        depth += ch in "[(" or 0
+        depth -= ch in "])" or 0
+        if ch == "," and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    return [p for p in (*out, cur) if p.strip()]
+
+
 def problem_detail(store: Store, problem_slug: str) -> dict[str, Any]:
     spec, v = _get(store, problem_slug)
-    last = store.one("select code from coding_submissions where slug = ? order by created_at desc limit 1", (problem_slug,))
+    last = store.one("select code from coding_submissions where slug = ? and language = 'python' order by created_at desc limit 1", (problem_slug,))
+    last_js = store.one("select code from coding_submissions where slug = ? and language = 'javascript' order by created_at desc limit 1", (problem_slug,))
     history = store.all(
-        "select verdict, scale, passed, total, is_submit, runtime_ms, created_at from coding_submissions where slug = ? order by created_at desc limit 10",
+        "select verdict, scale, passed, total, is_submit, runtime_ms, language, created_at from coding_submissions where slug = ? order by created_at desc limit 10",
         (problem_slug,),
     )
     return {
@@ -161,7 +192,10 @@ def problem_detail(store: Store, problem_slug: str) -> dict[str, Any]:
         "examples": [{"args": t.args, "expected": t.expected} for t in v.tests if not t.hidden],
         "hidden_tests": sum(1 for t in v.tests if t.hidden),
         "starter_code": starter_code(spec),
+        "starter_code_js": js_starter_code(spec),
+        "languages": ["python", "javascript"],
         "saved_code": last["code"] if last else None,
+        "saved_code_js": last_js["code"] if last_js else None,
         "status": _status(store, problem_slug),
         "xp": XP_RULES[f"coding_accepted_{spec.difficulty}"],
         "verification": {"cases_run": v.cases_run, "method": "reference vs independent brute force", "seed": v.seed},
@@ -172,21 +206,22 @@ def problem_detail(store: Store, problem_slug: str) -> dict[str, Any]:
 
 
 def grade(store: Store, problem_slug: str, code: str, language: str, submit: bool) -> dict[str, Any]:
-    if language != "python":
-        raise ArenaError(422, "Only Python is supported right now.")
+    if language not in ("python", "javascript"):
+        raise ArenaError(422, "Python and JavaScript are supported.")
     spec, v = _get(store, problem_slug)
     executor = executor_from_env()
-    result: SubmissionResult = grade_submission(code, v.tests, executor, include_hidden=submit, unordered=spec.unordered_output)
+    result: SubmissionResult = grade_submission(code, v.tests, executor, include_hidden=submit, unordered=spec.unordered_output, language=language)
     sub_id = new_id()
     store.run(
-        "insert into coding_submissions (id, slug, code, is_submit, verdict, passed, total, runtime_ms, executor, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (sub_id, problem_slug, code, int(submit), result.verdict, result.passed, result.total, result.runtime_ms, result.executor, now_iso()),
+        "insert into coding_submissions (id, slug, code, is_submit, verdict, passed, total, runtime_ms, executor, language, created_at) "
+        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (sub_id, problem_slug, code, int(submit), result.verdict, result.passed, result.total, result.runtime_ms, result.executor, language, now_iso()),
     )
     xp = 0
     if submit and result.verdict == "accepted":
         # One award per problem, ever: source is the problem, not the submission.
         xp = award(store, f"coding_accepted_{spec.difficulty}", XP_RULES[f"coding_accepted_{spec.difficulty}"], "coding_problem", problem_slug)
-        if v.scale:
+        if v.scale and language == "python":  # speed tiers are calibrated against the Python reference
             result.scale = grade_scale(code, spec, v.scale, executor)
             if result.scale.status == "fast":
                 xp += award(store, "coding_fast", XP_RULES["coding_fast"], "coding_problem", problem_slug)

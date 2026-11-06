@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import achievements, arena, exam, generation, interview, party, player, progress
+from .ingest.office import extract_docx, extract_pptx
 from .ingest.pdf import MAX_BYTES, ExtractionError, combine, extract_pdf, extract_text
 from .llm import llm_from_env
 from .store import get_store
@@ -190,27 +191,36 @@ async def upload_course(
     if len(files) > MAX_UPLOAD_FILES:
         raise HTTPException(413, detail=f"Up to {MAX_UPLOAD_FILES} files at a time.")
     named = []
+    skipped: list[dict[str, str]] = []
     for f in files:
         fname = re.sub(r"[^\w.\- ]", "_", f.filename or "upload.pdf")[:120]
         data = await _read_upload(f)
+        low = fname.lower()
         try:
-            if fname.lower().endswith((".txt", ".md", ".markdown")):
+            if low.endswith((".txt", ".md", ".markdown")):
                 named.append((fname, extract_text(data.decode("utf-8", errors="replace"))))
+            elif low.endswith(".docx"):
+                named.append((fname, extract_docx(data)))
+            elif low.endswith(".pptx"):
+                named.append((fname, extract_pptx(data)))
             else:
                 named.append((fname, extract_pdf(data)))
         except ExtractionError as err:
-            raise HTTPException(422, detail=f"{fname}: {err}") from err
+            skipped.append({"name": fname, "reason": str(err)})
     if text.strip():
         try:
             named.append(("Pasted notes", extract_text(text[:400_000])))
         except ExtractionError as err:
-            raise HTTPException(422, detail=str(err)) from err
+            skipped.append({"name": "Pasted notes", "reason": str(err)})
     if not named:
+        if skipped:
+            raise HTTPException(422, detail="; ".join(f"{s['name']}: {s['reason']}" for s in skipped))
         raise HTTPException(422, detail="Add a file or paste some notes first.")
     extraction = combine(named)
     preview = {
         "filename": named[0][0] if len(named) == 1 else f"{len(named)} sources",
         "files": [{"name": n, "pages": ex.page_count} for n, ex in named],
+        "skipped": skipped,
         "page_count": extraction.page_count,
         "char_count": extraction.char_count,
         "chunks": len(extraction.chunks),

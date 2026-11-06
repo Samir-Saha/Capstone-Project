@@ -246,6 +246,7 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("exam_questions", "rematch_of", "text"),
     ("exam_attempts", "steps", "text"),
     ("exam_attempts", "hearts_lost", "integer not null default 0"),
+    ("coding_submissions", "language", "text not null default 'python'"),
 ]
 
 

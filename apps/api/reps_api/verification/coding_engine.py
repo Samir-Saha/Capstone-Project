@@ -278,9 +278,11 @@ def grade_submission(
     executor: Executor,
     include_hidden: bool,
     unordered: bool = False,
+    language: str = "python",
 ) -> SubmissionResult:
     selected = [t for t in tests if include_hidden or not t.hidden]
-    res = executor.run({"mode": "run", "solution": code, "inputs": [t.args for t in selected]}, cpu_seconds=5, memory_mb=256)
+    job = {"mode": "run", "solution": code, "inputs": [t.args for t in selected], "language": language}
+    res = executor.run(job, cpu_seconds=5, memory_mb=256)
     hidden_total = sum(1 for t in selected if t.hidden)
 
     def empty(verdict: Verdict, error: str | None = None) -> SubmissionResult:
@@ -306,6 +308,8 @@ def grade_submission(
     run_status = payload.get("status")
     if run_status == "compilation_error":
         return empty("compilation_error", payload.get("error"))
+    if run_status == "time_limit_exceeded":
+        return empty("time_limit_exceeded")
     outputs: list[Any] = payload.get("outputs", [])
 
     public_results: list[PublicTestResult] = []

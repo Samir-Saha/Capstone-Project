@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from . import recall
 from .content.courses import DECIMAL, EXACT, ROOTS, QuestionTemplate
 from .ingest.pdf import Extraction
-from .llm import LLMError, LLMProvider, generate_structured
+from .llm import UNTRUSTED_NOTE, LLMError, LLMProvider, generate_structured
 from .store import Store, dumps, loads, new_id, now_iso
 from .verification.math_engine import MathProblemSpec, MathTask, ParamSpec, TaskKind, verify_problem
 from .verification.status import VerificationStatus
@@ -136,6 +136,80 @@ def to_template(g: GenTemplate, tid: str, topic_key: str) -> QuestionTemplate:
     )
 
 
+CONCEPT_PROMPT_VERSION = "concept-gen-1"
+CONCEPT_SYSTEM = (
+    "You write multiple-choice study questions from a student's own course notes. "
+    "Write conceptual and application questions (why, what happens if, which applies), not trivia about wording. "
+    "Every question must be answerable from one quoted sentence of the notes. Return JSON only: "
+    '{"items":[{"topic":"short topic name","question":"...","answer":"the correct option, a short phrase that appears word for word in the quote",'
+    '"distractors":["three wrong but plausible options of the same kind"],"difficulty":1,"source_chunk":0,'
+    '"source_quote":"one sentence copied exactly from that chunk"}]}. '
+    "Give 8 to 16 items spread across the material, 2 to 5 topics. " + "Never include the answer in the question."
+)
+
+
+class GenConcept(BaseModel):
+    topic: str = Field(min_length=1, max_length=60)
+    question: str = Field(min_length=8, max_length=400)
+    answer: str = Field(min_length=1, max_length=120)
+    distractors: list[str] = Field(min_length=3, max_length=3)
+    difficulty: int = Field(ge=1, le=3, default=2)
+    source_chunk: int
+    source_quote: str = Field(min_length=8, max_length=600)
+
+
+class GenConcepts(BaseModel):
+    items: list[GenConcept] = Field(default_factory=list, max_length=24)
+
+
+def _concept_topics(store: Store, provider: LLMProvider, name: str, extraction: Extraction, course_id: str) -> tuple[list[dict[str, Any]], int]:
+    """AI-written concept questions, kept only if the quote is really in the notes and the answer is in the quote."""
+    plan = generate_structured(provider, CONCEPT_SYSTEM + " " + UNTRUSTED_NOTE, build_prompt(name, extraction), GenConcepts, CONCEPT_PROMPT_VERSION, max_tokens=5000)
+    chunks = {c.index: c for c in extraction.chunks}
+    by_topic: dict[str, list[recall.RecallTemplate]] = {}
+    rejected = 0
+    for i, g in enumerate(plan.items):
+        chunk = chunks.get(g.source_chunk)
+        ans, quote = recall._norm(g.answer), recall._norm(g.source_quote)
+        wrong = [d.strip() for d in g.distractors if d.strip()]
+        reason = None
+        if chunk is None or quote not in recall._norm(chunk.text):
+            reason = "source quote not found in the material"
+        elif not ans or ans not in quote:
+            reason = "answer is not in the quoted sentence"
+        elif recall._stem(ans) in recall._stem(recall._norm(g.question)):
+            reason = "question gives away the answer"
+        elif len({recall._norm(d) for d in wrong} | {ans}) < 4:
+            reason = "choices repeat"
+        tid = f"{course_id}:c:{i}"
+        store.run(
+            "insert into verification_log (id, subject, subject_id, status, reason, method, created_at) values (?, 'generated_template', ?, ?, ?, ?, ?)",
+            (new_id(), tid, "rejected" if reason else "verified", reason, "grounded-concept", now_iso()),
+        )
+        if reason:
+            rejected += 1
+            continue
+        key = g.topic.strip()
+        by_topic.setdefault(key, []).append(
+            recall.RecallTemplate(
+                id=tid,
+                topic=key,
+                difficulty=g.difficulty,
+                form="mcq",
+                prompt=g.question.strip(),
+                answer=g.answer.strip(),
+                choices=[g.answer.strip(), *wrong],
+                quote=g.source_quote.strip(),
+                pages=[chunk.page_start],
+            )
+        )
+    topics = [
+        {"key": f"c{n}", "name": t[:48], "description": "Concept questions written by AI from your notes, each tied to a quoted sentence", "templates": items}
+        for n, (t, items) in enumerate(by_topic.items())
+    ]
+    return topics, rejected
+
+
 def generate_course(store: Store, provider: LLMProvider | None, name: str, extraction: Extraction, job_id: str, document_id: str) -> dict[str, Any]:
     """Computational questions from the AI (when a key is set) plus recall questions built
     straight from the notes (always). Either alone is enough to make a boss."""
@@ -154,6 +228,14 @@ def generate_course(store: Store, provider: LLMProvider | None, name: str, extra
         except (LLMError, ValueError) as err:
             log.warning("AI generation failed, using questions from the notes only: %s", err)
             ai_note = _friendly(err)
+    concept_topics: list[dict[str, Any]] = []
+    if provider is not None and ai_note is None:
+        progress(stage="generating", message="Writing concept questions from your notes")
+        try:
+            concept_topics, concept_rejected = _concept_topics(store, provider, name, extraction, course_id)
+            rejected += concept_rejected
+        except (LLMError, ValueError) as err:
+            log.warning("concept questions failed: %s", err)
 
     progress(stage="verifying", message="Building questions straight from your notes", kept=kept, rejected=rejected)
     recall_topics, recall_rejected = recall.build(course_id, extraction, f"{name}:{extraction.char_count}")
@@ -164,7 +246,9 @@ def generate_course(store: Store, provider: LLMProvider | None, name: str, extra
                 (new_id(), rt.id, "grounded-recall", now_iso()),
             )
     # Skipped sentences aren't rejected questions (most sentences just aren't quizzable), so they aren't logged.
+    n_concept = sum(len(t["templates"]) for t in concept_topics)
     n_recall = sum(len(t["templates"]) for t in recall_topics)
+    recall_topics = concept_topics + recall_topics
     if not kept_topics and not recall_topics:
         return {"course_id": None, "kept": 0, "rejected": rejected, "message": ai_note or "Not enough readable text to build questions from."}
 
@@ -196,6 +280,8 @@ def generate_course(store: Store, provider: LLMProvider | None, name: str, extra
     parts = []
     if kept:
         parts.append(f"{kept} computational question types verified by SymPy ({rejected} rejected)")
+    if n_concept:
+        parts.append(f"{n_concept} concept questions written by AI, each tied to a sentence in your notes")
     parts.append(f"{n_recall} questions built straight from your notes")
     if ai_note:
         parts.append(f"AI questions skipped: {ai_note}")
@@ -203,11 +289,12 @@ def generate_course(store: Store, provider: LLMProvider | None, name: str, extra
         parts.append("Add an AI key to also get computational problems")
     return {
         "course_id": course_id,
-        "kept": kept + n_recall,
+        "kept": kept + n_concept + n_recall,
         "rejected": rejected,
         "ai_kept": kept,
         "ai_rejected": rejected,
         "from_notes": n_recall,
+        "concepts": n_concept,
         "message": ". ".join(parts) + ".",
     }
 

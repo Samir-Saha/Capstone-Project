@@ -214,10 +214,12 @@ function Room({ code, seat, onLost }: { code: string; seat: PartySeat; onLost: (
     );
   if (!room || !me) return <Spinner label={link === "retrying" ? "Reconnecting to the raid" : "Connecting to the raid"} />;
 
-  const strike = () => {
-    if (!q || !answer.trim() || sending) return;
+  const strike = (picked?: string) => {
+    const given = picked ?? answer;
+    if (!q || !given.trim() || sending) return;
+    if (picked) setAnswer(picked);
     setNote(null);
-    if (send({ type: "answer", question_id: q.id, answer })) setSending(true);
+    if (send({ type: "answer", question_id: q.id, answer: given })) setSending(true);
     else setNote("Lost the connection. Reconnecting, then try again.");
   };
   const next = () => {
@@ -361,7 +363,7 @@ function Room({ code, seat, onLost }: { code: string; seat: PartySeat; onLost: (
                     <DifficultyPips level={q.difficulty} />
                     <span className="text-muted">{room.rules.damage[String(q.difficulty)] ?? ""} dmg</span>
                     <span className="ml-auto inline-flex items-center gap-1.5 text-heal" title={`Answer key checked by: ${q.checks.join(", ")}`}>
-                      <ShieldCheck size={15} aria-hidden /> Key verified
+                      <ShieldCheck size={15} aria-hidden /> {q.kind === "recall" ? "From your notes" : "Key verified"}
                     </span>
                   </div>
                   <p className="mt-6 text-lg leading-relaxed">{q.prompt}</p>
@@ -378,6 +380,23 @@ function Room({ code, seat, onLost }: { code: string; seat: PartySeat; onLost: (
                     }}
                   >
                     <p className="mb-2 text-sm text-muted">{q.answer_format}</p>
+                    {q.choices?.length ? (
+                      <div className="mb-3 grid gap-3 sm:grid-cols-2" role="group" aria-label="Choices">
+                        {q.choices.map((c, i) => (
+                          <button
+                            key={c}
+                            type="button"
+                            disabled={sending || room.status !== "active"}
+                            onClick={() => strike(c)}
+                            className="flex min-h-[52px] items-center gap-3 rounded-panel border border-line bg-ink/50 px-4 py-3 text-left transition hover:border-violet hover:bg-violet/10 disabled:opacity-60"
+                          >
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised font-display text-sm text-muted">{i + 1}</span>
+                            <span className="font-medium">{c}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className={q.choices?.length ? "hidden" : ""}>
                     <label htmlFor="party-answer" className="sr-only">
                       Your answer
                     </label>
@@ -398,11 +417,12 @@ function Room({ code, seat, onLost }: { code: string; seat: PartySeat; onLost: (
                       </button>
                     </div>
                     <div className="mt-2 min-h-[28px] text-sm">
-                      {preview && (
+                      {preview && q.kind !== "recall" && (
                         <span className="text-muted">
                           Reads as <TeX tex={preview} />
                         </span>
                       )}
+                    </div>
                     </div>
                     {note && (
                       <p className="text-sm text-xp" role="alert">

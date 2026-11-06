@@ -1,5 +1,6 @@
 import base64
 import json
+import shutil
 
 import httpx
 import pytest
@@ -195,3 +196,85 @@ def test_speed_tier_catches_wrong_answers_on_the_large_input(first_passing):
 def test_input_copying_is_not_timed():
     out = EX.run({"mode": "run", "solution": "def solve(xs):\n    return 0\n", "inputs": [[list(range(300_000))]]})
     assert out.payload["ms"][0] < 5
+
+
+# ------------------------------------------------------------------ JavaScript
+
+
+JS_BINARY = """function solve(scores, cutoff) {
+  let lo = 0, hi = scores.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (scores[mid] >= cutoff) hi = mid; else lo = mid + 1;
+  }
+  return lo < scores.length ? lo : -1;
+}"""
+
+JS_BRACKETS = """function solve(s) {
+  const pairs = { ")": "(", "]": "[", "}": "{" };
+  const stack = [];
+  for (const ch of s) {
+    if (ch in pairs) { if (stack.pop() !== pairs[ch]) return false; }
+    else stack.push(ch);
+  }
+  return stack.length === 0;
+}"""
+
+
+def _js_problem(title):
+    from reps_api.content.seed_coding import SEED_PROBLEMS
+    from reps_api.verification.coding_engine import verify_coding_problem
+    from reps_api.verification.executors import LocalSubprocessExecutor
+
+    spec = next(p for p in SEED_PROBLEMS if p.title == title)
+    ex = LocalSubprocessExecutor()
+    v = verify_coding_problem(spec, ex)
+    return spec, v, ex
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+def test_javascript_solutions_run_against_the_same_hidden_tests():
+    from reps_api.verification.coding_engine import grade_submission
+
+    spec, v, ex = _js_problem("First Passing Score")
+    ok = grade_submission(JS_BINARY, v.tests, ex, include_hidden=True, language="javascript")
+    assert ok.verdict == "accepted" and ok.passed == ok.total and ok.hidden_total > 0
+    wrong = grade_submission(JS_BINARY.replace("lo : -1", "lo : 0"), v.tests, ex, include_hidden=True, language="javascript")
+    assert wrong.verdict == "wrong_answer"
+    crash = grade_submission("function solve(a, b) { return a.nope.length; }", v.tests, ex, include_hidden=False, language="javascript")
+    assert crash.verdict == "runtime_error" and "TypeError" in (crash.error or "")
+    loop = grade_submission("function solve(a, b) { while (true) {} }", v.tests, ex, include_hidden=False, language="javascript")
+    assert loop.verdict == "time_limit_exceeded"
+    syntax = grade_submission("function solve(a, b) { return ", v.tests, ex, include_hidden=False, language="javascript")
+    assert syntax.verdict == "compilation_error"
+    missing = grade_submission("const x = 1;", v.tests, ex, include_hidden=False, language="javascript")
+    assert missing.verdict == "compilation_error" and "solve" in (missing.error or "")
+
+    spec, v, ex = _js_problem("Balanced Margin Notes")
+    assert grade_submission(JS_BRACKETS, v.tests, ex, include_hidden=True, language="javascript").verdict == "accepted"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
+def test_javascript_cannot_reach_node_apis():
+    from reps_api.verification.coding_engine import grade_submission
+
+    spec, v, ex = _js_problem("First Passing Score")
+    for code in ("function solve(){ return require('fs').readdirSync('.'); }", "function solve(){ return process.env; }"):
+        r = grade_submission(code, v.tests, ex, include_hidden=False, language="javascript")
+        assert r.verdict == "runtime_error" and "ReferenceError" in (r.error or "")
+    for code in (
+        "function solve(a){ return a.constructor.constructor('return process')().pid; }",
+        "function solve(){ return console.log.constructor('return process')().pid; }",
+        "function solve(){ return (function(){}).constructor('return 1')(); }",
+    ):
+        r = grade_submission(code, v.tests, ex, include_hidden=False, language="javascript")
+        assert r.verdict in ("runtime_error", "wrong_answer") and not any(isinstance(o.output, int) and o.output > 1 for o in r.public), r
+
+
+def test_js_starter_code_matches_the_signature():
+    from reps_api import arena
+    from reps_api.content.seed_coding import SEED_PROBLEMS
+
+    spec = next(p for p in SEED_PROBLEMS if p.title == "Count the Study Groups")
+    code = arena.js_starter_code(spec)
+    assert code.startswith("function solve(n, pairs) {") and "pairs: list[list[int]]" in code

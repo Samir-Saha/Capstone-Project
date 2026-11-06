@@ -88,6 +88,12 @@ function TurnCard({ t, aiAvailable }: { t: Turn; aiAvailable: boolean }) {
               Ownership: “I” {t.checks.ownership.i} times, “we” {t.checks.ownership.we}
             </Tick>
             {t.checks.explains_measurement !== undefined && <Tick ok={t.checks.explains_measurement}>Explains how it was measured</Tick>}
+            {t.checks.star && (
+              <Tick ok={Object.values(t.checks.star).every(Boolean)}>
+                STAR parts found: {(["situation", "task", "action", "result"] as const).filter((k) => t.checks.star?.[k]).map((k) => k[0]!.toUpperCase()).join(" ") || "none"}
+                {Object.values(t.checks.star).every(Boolean) ? "" : ` (missing ${(["situation", "task", "action", "result"] as const).filter((k) => !t.checks.star?.[k]).join(", ")})`}
+              </Tick>
+            )}
             {t.checks.code && (
               <Tick ok={t.checks.code.verdict === "accepted"}>
                 Code: {t.checks.code.verdict.replace(/_/g, " ")}

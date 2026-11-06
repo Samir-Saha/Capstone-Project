@@ -317,4 +317,95 @@ def generate_large():
 """,
 )
 
-SEED_PROBLEMS = [PAIR_UP, FIRST_PASSING, BALANCED_NOTES, LONGEST_BUDGET_WINDOW, ISLAND_GROUPS, FEWEST_PROBLEM_SETS]
+BEST_STUDY_STRETCH = CodingProblemSpec(
+    title="Best Study Stretch",
+    pattern="dynamic programming",
+    difficulty="medium",
+    statement=(
+        "focus holds your focus score for each half hour of a study day. Scores can be negative when you got distracted. "
+        "Return the largest total of any non-empty run of consecutive half hours. (Known elsewhere as maximum subarray.) Aim for O(n)."
+    ),
+    signature="def solve(focus: list[int]) -> int",
+    reference_solution="""
+def solve(focus):
+    best = current = focus[0]
+    for x in focus[1:]:
+        current = max(x, current + x)
+        best = max(best, current)
+    return best
+""",
+    brute_force_solution="""
+def solve(focus):
+    best = None
+    for i in range(len(focus)):
+        total = 0
+        for j in range(i, len(focus)):
+            total += focus[j]
+            if best is None or total > best:
+                best = total
+    return best
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(1, 30)
+    return [[rng.randint(-20, 20) for _ in range(n)]]
+""",
+    edge_cases=[[[5]], [[-3]], [[-8, -2, -5]], [[0, 0, 0]], [[2, -1, 2, -1, 2]]],
+    public_examples=[[[-2, 3, 4, -1, 2, -6, 5]], [[-4, -1, -7]]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(11)
+    return [[rng.randint(-1000, 1000) for _ in range(300_000)]]
+""",
+)
+
+LONGEST_FRESH_RUN = CodingProblemSpec(
+    title="Longest Fresh Run",
+    pattern="sliding window",
+    difficulty="medium",
+    statement=(
+        "s is the sequence of flashcard tags you reviewed, one character per card. Return the length of the longest stretch "
+        "of consecutive cards with no tag repeated. (Known elsewhere as longest substring without repeating characters.) Aim for O(n)."
+    ),
+    signature="def solve(s: str) -> int",
+    reference_solution="""
+def solve(s):
+    last = {}
+    start = best = 0
+    for i, ch in enumerate(s):
+        if ch in last and last[ch] >= start:
+            start = last[ch] + 1
+        last[ch] = i
+        best = max(best, i - start + 1)
+    return best
+""",
+    brute_force_solution="""
+def solve(s):
+    best = 0
+    for i in range(len(s)):
+        seen = set()
+        for j in range(i, len(s)):
+            if s[j] in seen:
+                break
+            seen.add(s[j])
+            best = max(best, j - i + 1)
+    return best
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 30)
+    alphabet = "abcdefgh"[: rng.randint(1, 8)]
+    return ["".join(rng.choice(alphabet) for _ in range(n))]
+""",
+    edge_cases=[[""], ["a"], ["aaaa"], ["abcdef"], ["abba"], ["dvdf"]],
+    public_examples=[["abcabcbb"], ["pwwkew"]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(5)
+    return ["".join(rng.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(400_000))]
+""",
+)
+
+SEED_PROBLEMS = [PAIR_UP, FIRST_PASSING, BALANCED_NOTES, LONGEST_BUDGET_WINDOW, LONGEST_FRESH_RUN, BEST_STUDY_STRETCH, ISLAND_GROUPS, FEWEST_PROBLEM_SETS]

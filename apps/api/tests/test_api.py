@@ -55,7 +55,7 @@ def test_math_preview(client):
 
 def test_arena_hides_hidden_tests_and_awards_xp_once(client):
     problems = client.get("/api/coding/problems").json()
-    assert len(problems) == 6 and problems[0]["difficulty"] == "easy"
+    assert len(problems) == 8 and problems[0]["difficulty"] == "easy"
     slug = arena.slug(LONGEST_BUDGET_WINDOW.title)
     detail = client.get(f"/api/coding/problems/{slug}").json()
     assert "def solve(minutes, budget):" not in str(detail)

@@ -91,14 +91,15 @@ def _sentences(extraction: Extraction) -> list[tuple[str, int, str | None]]:
             for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])|\s*[•▪●◦]\s*", text):
                 sent = sent.strip(" -–•\"'")
                 words = sent.split()
-                if 7 <= len(words) <= 45 and sum(c.isalpha() for c in sent) / max(1, len(sent)) > 0.6:
+                numbers = len(re.findall(r"\d+(?:[.,]\d+)?", sent))
+                if 7 <= len(words) <= 45 and numbers <= 1 and not re.match(r"^\d+[.)]\s", sent) and sum(c.isalpha() for c in sent) / max(1, len(sent)) > 0.6:
                     out.append((sent, page.number, heading))
     seen: set[str] = set()
     return [x for x in out if not (x[0].lower() in seen or seen.add(x[0].lower()))]
 
 
 NUMBER_WORDS = {"three", "four", "five", "seven", "eight", "nine", "hundred", "thousand", "million", "several", "across", "active", "positive", "negative"}
-NOUN_SUFFIX = re.compile(r"(tion|sion|sis|ment|ism|ity|ance|ence|ure|ase|ogy|ics|ness|ship|ics|ide|ine|ium|ole|ons|ers|ors)$")
+NOUN_SUFFIX = re.compile(r"(tion|sion|sis|ment|ism|ity|ance|ence|ase|ogy|ness|ship|ium|ology|ysis)$")
 DETERMINER_RE = re.compile(r"\b(?:the|a|an|its|their|of|each|this|these|those|his|her|our|your)\s+([a-z][a-z\-']{3,})(?:\s+([a-z][a-z\-']{3,}))?", re.I)
 
 
@@ -147,7 +148,14 @@ def _choices(answer: str, pool: list[str], rng: random.Random) -> list[str]:
     a = _norm(answer)
     same_shape = [t for t in pool if _norm(t) != a and a not in _norm(t) and _norm(t) not in a and (" " in t) == (" " in answer)]
     others = [t for t in pool if _norm(t) != a and a not in _norm(t) and _norm(t) not in a and t not in same_shape]
+
+    def unique(items: list[str]) -> list[str]:
+        seen = {_stem(a)}
+        return [t for t in items if not (_stem(_norm(t)) in seen or seen.add(_stem(_norm(t))))]
+
+    same_shape, others = unique(same_shape), unique(others)
     picks = rng.sample(same_shape, min(3, len(same_shape)))
+    picks = unique(picks)
     if len(picks) < 3:
         picks += rng.sample(others, min(3 - len(picks), len(others)))
     if len(picks) < 3:
@@ -208,7 +216,7 @@ def build(course_id: str, extraction: Extraction, seed_text: str = "") -> tuple[
         return [], ["no readable sentences in the material"]
     nouns = _nouns(sentences)
     counts = _terms(sentences, nouns)
-    pool = [t for t, c in counts.most_common(400) if len(t) >= 4 and (" " in t or c >= 2 or NOUN_SUFFIX.search(t))]
+    pool = [t for t, c in counts.most_common(400) if len(t) >= 4 and (" " in t or (t in nouns and (c >= 2 or NOUN_SUFFIX.search(t))))]
     distinctive = [t for t, c in counts.most_common(400) if c >= 2 or " " in t]
     topics: list[dict[str, Any]] = []
     rejected: list[str] = []
@@ -302,6 +310,21 @@ class RecallGrade(BaseModel):
     detail: str = ""
 
 
+def _stem(text: str) -> str:
+    """Rough singular form, enough to treat "enzymes"/"enzyme" and "leaves"/"leave" as the same word."""
+
+    def one(w: str) -> str:
+        if len(w) <= 3 or w.endswith("ss"):
+            return w
+        if w.endswith("ies"):
+            return w[:-3] + "y"
+        if re.search(r"(s|x|z|ch|sh)es$", w):
+            return w[:-2]
+        return w[:-1] if w.endswith("s") else w
+
+    return " ".join(one(w) for w in text.split())
+
+
 def grade(task: dict[str, Any], answer: str, given: str) -> RecallGrade:
     a, g = _norm(answer), _norm(given)
     if task.get("form") == "mcq":
@@ -309,7 +332,9 @@ def grade(task: dict[str, Any], answer: str, given: str) -> RecallGrade:
     accept = [a, *[_norm(x) for x in task.get("accept", [])]]
     if g in accept:
         return RecallGrade(correct=True, method="an exact match with your notes")
+    if any(_stem(g) == _stem(x) for x in accept):
+        return RecallGrade(correct=True, method="a match with your notes (singular or plural)")
     close = max(SequenceMatcher(None, g, x).ratio() for x in accept)
-    if len(a) >= 5 and close >= 0.85:
+    if (len(a) >= 5 and close >= 0.85) or (len(a) >= 4 and close >= 0.75 and abs(len(a) - len(g)) <= 1):
         return RecallGrade(correct=True, method="a near-match with your notes (small typo allowed)")
     return RecallGrade(correct=False, method="comparing with the sentence in your notes")
