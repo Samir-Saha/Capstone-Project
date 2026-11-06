@@ -22,6 +22,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from . import recall
 from .content.courses import DECIMAL, EXACT, ROOTS, QuestionTemplate
 from .ingest.pdf import Extraction
 from .llm import LLMError, LLMProvider, generate_structured
@@ -75,6 +76,17 @@ SYSTEM = (
 )
 
 
+def _friendly(err: Exception) -> str:
+    text = str(err)
+    if " 503" in text or " 429" in text or "high demand" in text:
+        return "The AI service is overloaded right now. Wait a minute and click Build the boss again."
+    if " 401" in text or " 403" in text or "API key" in text:
+        return "The AI key was rejected. Check LLM_API_KEY in .env, then restart Reps."
+    if " 404" in text:
+        return "That AI model isn't available. Check LLM_MODEL in .env, then restart Reps."
+    return "Question generation failed. Try again, or try fewer or smaller files."
+
+
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
@@ -124,17 +136,93 @@ def to_template(g: GenTemplate, tid: str, topic_key: str) -> QuestionTemplate:
     )
 
 
-def generate_course(store: Store, provider: LLMProvider, name: str, extraction: Extraction, job_id: str, document_id: str) -> dict[str, Any]:
+def generate_course(store: Store, provider: LLMProvider | None, name: str, extraction: Extraction, job_id: str, document_id: str) -> dict[str, Any]:
+    """Computational questions from the AI (when a key is set) plus recall questions built
+    straight from the notes (always). Either alone is enough to make a boss."""
+
     def progress(**kw: Any) -> None:
         store.run("update jobs set progress = ? where id = ?", (dumps(kw), job_id))
 
+    course_id = new_id()
+    kept_topics: list[tuple[str, GenTopic, list[QuestionTemplate], list[dict]]] = []
+    kept = rejected = 0
+    boss = None
+    ai_note = None
+    if provider is not None:
+        try:
+            kept_topics, kept, rejected, boss = _ai_topics(store, provider, name, extraction, progress, course_id, document_id)
+        except (LLMError, ValueError) as err:
+            log.warning("AI generation failed, using questions from the notes only: %s", err)
+            ai_note = _friendly(err)
+
+    progress(stage="verifying", message="Building questions straight from your notes", kept=kept, rejected=rejected)
+    recall_topics, recall_rejected = recall.build(course_id, extraction, f"{name}:{extraction.char_count}")
+    for t in recall_topics:
+        for rt in t["templates"]:
+            store.run(
+                "insert into verification_log (id, subject, subject_id, status, reason, method, created_at) values (?, 'generated_template', ?, 'verified', null, ?, ?)",
+                (new_id(), rt.id, "grounded-recall", now_iso()),
+            )
+    for reason in recall_rejected[:200]:
+        store.run(
+            "insert into verification_log (id, subject, subject_id, status, reason, method, created_at) values (?, 'generated_template', ?, 'rejected', ?, ?, ?)",
+            (new_id(), course_id, reason, "grounded-recall", now_iso()),
+        )
+    n_recall = sum(len(t["templates"]) for t in recall_topics)
+    if not kept_topics and not recall_topics:
+        return {"course_id": None, "kept": 0, "rejected": rejected, "message": ai_note or "Not enough readable text to build questions from."}
+
+    with store.tx() as db:
+        db.execute(
+            "insert into courses (id, name, code, boss_name, kind, created_at) values (?, ?, null, ?, 'uploaded', ?)",
+            (course_id, name, boss or recall.boss_name(name, recall_topics), now_iso()),
+        )
+        pos = 0
+        for topic_key, topic, templates, sources in kept_topics:
+            tid = f"{course_id}:{topic_key}"
+            db.execute("insert into topics (id, course_id, name, description, position) values (?, ?, ?, ?, ?)", (tid, course_id, topic.name, topic.description, pos))
+            pos += 1
+            for tpl, src in zip(templates, sources, strict=False):
+                db.execute(
+                    "insert into templates (id, course_id, topic_id, difficulty, body, source) values (?, ?, ?, ?, ?, ?)",
+                    (tpl.id, course_id, tid, tpl.difficulty, tpl.model_dump_json(), dumps(src)),
+                )
+        for t in recall_topics:
+            tid = f"{course_id}:{t['key']}"
+            db.execute("insert into topics (id, course_id, name, description, position) values (?, ?, ?, ?, ?)", (tid, course_id, t["name"], t["description"], pos))
+            pos += 1
+            for rt in t["templates"]:
+                db.execute(
+                    "insert into templates (id, course_id, topic_id, difficulty, body, source) values (?, ?, ?, ?, ?, ?)",
+                    (rt.id, course_id, tid, rt.difficulty, rt.model_dump_json(), dumps({"document_id": document_id, "pages": rt.pages, "quote": rt.quote})),
+                )
+        db.execute("update documents set course_id = ?, status = 'ready' where id = ?", (course_id, document_id))
+    parts = []
+    if kept:
+        parts.append(f"{kept} computational question types verified by SymPy ({rejected} rejected)")
+    parts.append(f"{n_recall} questions built straight from your notes")
+    if ai_note:
+        parts.append(f"AI questions skipped: {ai_note}")
+    elif provider is None:
+        parts.append("Add an AI key to also get computational problems")
+    return {
+        "course_id": course_id,
+        "kept": kept + n_recall,
+        "rejected": rejected + len(recall_rejected),
+        "ai_kept": kept,
+        "ai_rejected": rejected,
+        "from_notes": n_recall,
+        "message": ". ".join(parts) + ".",
+    }
+
+
+def _ai_topics(store: Store, provider: LLMProvider, name: str, extraction: Extraction, progress, course_id: str, document_id: str):
     progress(stage="generating", message="Reading your material and drafting questions")
     plan = generate_structured(provider, SYSTEM, build_prompt(name, extraction), GenCourse, PROMPT_VERSION, max_tokens=6000)
     if plan.no_computational_content or not plan.topics:
-        return {"course_id": None, "kept": 0, "rejected": 0, "message": "No computational problems found in this material."}
+        return [], 0, 0, None
 
     chunks = {c.index: c for c in extraction.chunks}
-    course_id = new_id()
     kept_topics: list[tuple[str, GenTopic, list[QuestionTemplate], list[dict]]] = []
     kept = rejected = 0
     total = sum(len(t.templates) for t in plan.topics)
@@ -174,27 +262,10 @@ def generate_course(store: Store, provider: LLMProvider, name: str, extraction: 
         if good:
             kept_topics.append((topic_key, topic, good, sources))
 
-    if not kept_topics:
-        return {"course_id": None, "kept": 0, "rejected": rejected, "message": "No generated question passed verification."}
-
-    with store.tx() as db:
-        db.execute(
-            "insert into courses (id, name, code, boss_name, kind, created_at) values (?, ?, null, ?, 'uploaded', ?)",
-            (course_id, name, plan.boss_name, now_iso()),
-        )
-        for pos, (topic_key, topic, templates, sources) in enumerate(kept_topics):
-            tid = f"{course_id}:{topic_key}"
-            db.execute("insert into topics (id, course_id, name, description, position) values (?, ?, ?, ?, ?)", (tid, course_id, topic.name, topic.description, pos))
-            for tpl, src in zip(templates, sources):
-                db.execute(
-                    "insert into templates (id, course_id, topic_id, difficulty, body, source) values (?, ?, ?, ?, ?, ?)",
-                    (tpl.id, course_id, tid, tpl.difficulty, tpl.model_dump_json(), dumps(src)),
-                )
-        db.execute("update documents set course_id = ?, status = 'ready' where id = ?", (course_id, document_id))
-    return {"course_id": course_id, "kept": kept, "rejected": rejected, "message": f"{kept} question types verified, {rejected} rejected."}
+    return kept_topics, kept, rejected, plan.boss_name
 
 
-def start_job(store: Store, provider: LLMProvider, name: str, filename: str, extraction: Extraction) -> dict[str, Any]:
+def start_job(store: Store, provider: LLMProvider | None, name: str, filename: str, extraction: Extraction) -> dict[str, Any]:
     job_id, doc_id = new_id(), new_id()
     store.run(
         "insert into documents (id, filename, page_count, char_count, status, created_at) values (?, ?, ?, ?, 'processing', ?)",
@@ -220,7 +291,7 @@ def start_job(store: Store, provider: LLMProvider, name: str, filename: str, ext
             log.warning("generation job %s failed: %s", job_id, err)
             store.run(
                 "update jobs set status = 'failed', error = ?, finished_at = ? where id = ?",
-                ("Question generation failed. Try again, or try a smaller file.", now_iso(), job_id),
+                (_friendly(err), now_iso(), job_id),
             )
             store.run("update documents set status = 'failed', error = ? where id = ?", (str(err)[:300], doc_id))
 

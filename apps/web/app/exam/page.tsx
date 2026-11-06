@@ -72,7 +72,7 @@ function BossCard({ course }: { course: Course }) {
             {busy ? "Opening the arena" : course.active_session_id ? "Resume the fight" : "Start the fight"}
           </button>
           <span className="text-sm text-muted">
-            {course.question_types} question types, fresh numbers every time. 15 questions, 5 hearts.
+            {course.from_notes ? `${course.from_notes} questions from your notes${course.question_types > course.from_notes ? `, ${course.question_types - course.from_notes} computed problem types` : ""}` : `${course.question_types} question types, fresh numbers every time`}. 15 questions, 5 hearts.
           </span>
         </div>
         {error && (
@@ -95,6 +95,7 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  const [notes, setNotes] = useState("");
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -114,9 +115,9 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
   const pick = (list: FileList | null | undefined) => {
     if (!list?.length) return;
     const incoming = Array.from(list);
-    const notPdf = incoming.find((f) => f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf"));
+    const notPdf = incoming.find((f) => !/\.(pdf|txt|md|markdown)$/i.test(f.name));
     if (notPdf) {
-      setError(`${notPdf.name} isn't a PDF. Slides and notes can be exported to PDF first.`);
+      setError(`${notPdf.name} isn't a PDF or text file. Export slides or Word docs to PDF, or paste the text below.`);
       return;
     }
     const big = incoming.find((f) => f.size > 25 * 1024 * 1024);
@@ -127,22 +128,22 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
     setError(null);
     setFiles((prev) => {
       const merged = [...prev, ...incoming.filter((f) => !prev.some((p) => p.name === f.name && p.size === f.size))].slice(0, MAX_FILES);
-      if (prev.length + incoming.length > MAX_FILES) setError(`Up to ${MAX_FILES} PDFs per boss. The first ${MAX_FILES} are kept.`);
+      if (prev.length + incoming.length > MAX_FILES) setError(`Up to ${MAX_FILES} files per boss. The first ${MAX_FILES} are kept.`);
       return merged;
     });
-    if (!name) setName(incoming[0]!.name.replace(/\.pdf$/i, "").slice(0, 60));
+    if (!name) setName(incoming[0]!.name.replace(/\.(pdf|txt|md|markdown)$/i, "").slice(0, 60));
     if (input.current) input.current.value = "";
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!files.length || !name.trim()) return;
+    if ((!files.length && !notes.trim()) || !name.trim()) return;
     setBusy(true);
     setError(null);
     setResult(null);
     setJob(null);
     try {
-      const r = await api.uploadCourse(files, name.trim());
+      const r = await api.uploadCourse(files, name.trim(), notes);
       setResult(r);
       setJob(r.job);
     } catch (err) {
@@ -158,8 +159,8 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
         Turn your notes into a boss
       </h2>
       <p className="mt-1 max-w-2xl text-sm text-muted">
-        Upload every PDF for the class at once: lecture notes, slides, study guides. Reps pulls out the topics across all of them, drafts computational questions that quote your material, and keeps only the ones
-        that pass verification.
+        Drop in every PDF or text file for the class, or paste your notes. Each question is built from a sentence in your material and shows the page it came from. With an AI key, Reps also
+        writes computational problems and keeps only the ones SymPy verifies.
       </p>
       <form onSubmit={submit} className="mt-5 grid gap-4 md:grid-cols-[1fr_280px]">
         <div
@@ -196,12 +197,25 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
               ))}
             </ul>
           ) : (
-            <p className="text-muted">Drop all your PDFs here: lecture notes, slides, study guides (up to {MAX_FILES}, 25 MB each)</p>
+            <p className="text-muted">Drop PDFs or .txt files here: lecture notes, slides, study guides (up to {MAX_FILES}, 25 MB each)</p>
           )}
           <button type="button" className="btn-ghost mt-1 px-3 py-1.5 text-sm" onClick={() => input.current?.click()}>
-            {files.length ? "Add more PDFs" : "Choose PDFs"}
+            {files.length ? "Add more files" : "Choose files"}
           </button>
-          <input ref={input} type="file" multiple accept="application/pdf,.pdf" className="sr-only" onChange={(e) => pick(e.target.files)} />
+          <input ref={input} type="file" multiple accept="application/pdf,.pdf,.txt,.md,text/plain,text/markdown" className="sr-only" onChange={(e) => pick(e.target.files)} />
+          <div className="mt-2 w-full max-w-xl text-left">
+            <label htmlFor="paste-notes" className="label">
+              Or paste notes
+            </label>
+            <textarea
+              id="paste-notes"
+              className="field min-h-[120px] resize-y text-sm"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Paste a study guide, lecture notes, or anything with full sentences. Headings become topics."
+            />
+            {notes.trim() && <p className="mt-1 text-xs text-muted">{notes.trim().split(/\s+/).length.toLocaleString()} words</p>}
+          </div>
         </div>
         <div className="flex flex-col gap-3">
           <div>
@@ -210,8 +224,8 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
             </label>
             <input id="course-name" className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Calc 2, midterm 1" required />
           </div>
-          <button type="submit" className="btn-primary mt-auto" disabled={!files.length || !name.trim() || busy}>
-            {busy ? `Reading ${files.length === 1 ? "the PDF" : `${files.length} PDFs`}` : "Build the boss"}
+          <button type="submit" className="btn-primary mt-auto" disabled={(!files.length && !notes.trim()) || !name.trim() || busy}>
+            {busy ? "Reading your notes" : "Build the boss"}
           </button>
         </div>
       </form>

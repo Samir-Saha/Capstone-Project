@@ -212,7 +212,7 @@ def test_generation_keeps_only_grounded_verified_templates(store):
     store.run("insert into jobs (id, kind, status, progress, created_at) values ('j', 'generate_course', 'running', '{}', 'now')")
     store.run("insert into documents (id, filename, status, created_at) values ('d', 'notes.pdf', 'processing', 'now')")
     result = generation.generate_course(store, provider, "Calc notes", extraction, "j", "d")
-    assert result["kept"] == 1 and result["rejected"] == 2
+    assert result["ai_kept"] == 1 and result["ai_rejected"] == 2
     course = store.one("select * from courses where id = ?", (result["course_id"],))
     assert course["boss_name"] == "The Power Warden"
     reasons = {r["reason"] for r in store.all("select reason from verification_log where subject = 'generated_template' and status = 'rejected'")}

@@ -187,7 +187,17 @@ def upload_resume(store: Store, filename: str, data: bytes) -> dict[str, Any]:
         extraction = extract_pdf(data)
     except ExtractionError as err:
         raise InterviewError(422, str(err)) from err
-    text = "\n\n".join(p.text for p in extraction.pages)
+    return _save_resume(store, filename, "\n\n".join(p.text for p in extraction.pages))
+
+
+def upload_resume_text(store: Store, text: str) -> dict[str, Any]:
+    text = text.replace("\r\n", "\n").strip()[:60_000]
+    if len(text) < 80:
+        raise InterviewError(422, "Paste your whole resume, not just a line or two.")
+    return _save_resume(store, "Pasted resume", text)
+
+
+def _save_resume(store: Store, filename: str, text: str) -> dict[str, Any]:
     claims = extract_claims(text)
     rid = new_id()
     store.run(
@@ -420,10 +430,201 @@ FUTURE_RE = re.compile(
 )
 
 
+NAME_STOP = {
+    "experience",
+    "education",
+    "skills",
+    "projects",
+    "project",
+    "summary",
+    "objective",
+    "technical",
+    "relevant",
+    "coursework",
+    "languages",
+    "tools",
+    "frameworks",
+    "leadership",
+    "activities",
+    "awards",
+    "honors",
+    "certifications",
+    "interests",
+    "work",
+    "the",
+    "and",
+    "for",
+    "with",
+    "inc",
+    "llc",
+    "present",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "sept",
+    "oct",
+    "nov",
+    "dec",
+    "gpa",
+    "email",
+    "phone",
+    "linkedin",
+    "github",
+    "remote",
+    "bachelor",
+    "bs",
+    "ba",
+    "university",
+    "college",
+    "school",
+    "new",
+    "york",
+    "jersey",
+    "nj",
+    "ny",
+    "usa",
+    "intern",
+    "internship",
+    "assistant",
+    "manager",
+    "developer",
+    "engineer",
+    "software",
+    "data",
+    "science",
+    "computer",
+    "student",
+    "member",
+    "lead",
+}
+CONTENT_STOP = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "into",
+    "that",
+    "this",
+    "over",
+    "across",
+    "while",
+    "using",
+    "by",
+    "of",
+    "to",
+    "in",
+    "on",
+    "a",
+    "an",
+    "at",
+    "as",
+    "per",
+    "via",
+    "their",
+    "them",
+    "its",
+    "our",
+    "your",
+    "weekly",
+    "daily",
+    "new",
+    "all",
+    "more",
+    "than",
+}
+SPOKEN = [(r"\bc\s*plus\s*plus\b", "c++"), (r"\bc\s*sharp\b", "c#"), (r"\bnext\s*js\b", "next.js"), (r"\bnode\s*js\b", "node")]
+
+
+def resume_terms(text: str) -> list[str]:
+    """Names worth saying out loud: tools from anywhere on the resume (skills section too), proper names
+    such as companies, schools and projects, and two-word phrases from the bullets ("order book")."""
+    terms: list[str] = list(_technologies(text))
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    for line in lines[1:]:  # the first line is the candidate's own name
+        body = BULLET.sub("", line).strip()
+        for m in re.finditer(r"\b[A-Z][A-Za-z0-9&+]*(?:\s+[A-Z][A-Za-z0-9&+]*)*", body):
+            words = [w for w in m.group(0).split() if w.lower() not in NAME_STOP and not ACTION_VERBS.match(w.lower())]
+            phrase = " ".join(words)
+            if len(phrase) >= 3 and not phrase.isdigit():
+                terms.append(phrase)
+        words = [w.lower() for w in re.findall(r"[A-Za-z][A-Za-z+#-]{2,}", body)]
+        for a, b in zip(words, words[1:], strict=False):
+            if not ({a, b} & (CONTENT_STOP | NAME_STOP)) and not ACTION_VERBS.match(a):
+                terms.append(f"{a} {b}")
+    seen: set[str] = set()
+    return [t for t in terms if not (t.lower() in seen or seen.add(t.lower()))]
+
+
+def resume_hits(answer: str, terms: list[str]) -> list[str]:
+    low = answer.lower()
+    for pattern, repl in SPOKEN:
+        low = re.sub(pattern, repl, low)
+    hits = [t for t in terms if re.search(rf"(?<![a-z0-9]){re.escape(t.lower())}(?![a-z0-9])", low)]
+    # Prefer proper names and tools over generic two-word phrases in the feedback.
+    return sorted(hits, key=lambda t: (t.islower() and " " in t, -len(t)))
+
+
+REPEAT_RE = re.compile(r"\b([A-Za-z']+)(?:[\s,.]+\1\b)+", re.I)
+
+
+def _fluency(text: str, metrics: dict[str, Any]) -> tuple[bool, str]:
+    """Delivery from what can be measured. Browser speech recognition drops most "um"s, so pauses
+    and repeated words (stutters like "and and") from the transcript and mic carry most of the signal."""
+    words = max(1, len(_words(text)))
+    problems: list[str] = []
+    fillers = metrics.get("filler_total", 0)
+    fpm = metrics.get("fillers_per_min")
+    if (fpm is not None and fpm > 4) or (fpm is None and fillers > 3):
+        problems.append(f"{fillers} filler words")
+    spoken = text
+    for pattern, repl in SPOKEN:
+        spoken = re.sub(pattern, repl, spoken, flags=re.I)
+    repeats = [m.group(0) for m in REPEAT_RE.finditer(spoken) if m.group(1).lower() not in ("had", "that", "very", "so", "bye")]
+    if repeats:
+        problems.append(f"{len(repeats)} stutter{'s' if len(repeats) != 1 else ''} (" + ", ".join(f"“{r}”" for r in repeats[:3]) + ")")
+    ands = len(re.findall(r"\band\b", text, re.I))
+    if words >= 25 and ands / words > 0.07:
+        problems.append(f"“and” {ands} times; end some sentences instead")
+    duration = metrics.get("duration_s")
+    if duration:
+        long_pauses = metrics.get("long_pauses", 0)
+        pauses = metrics.get("pause_count", 0)
+        per_min = pauses / (duration / 60) if duration >= 5 else 0
+        speaking = metrics.get("speaking_s") or 0
+        if long_pauses:
+            problems.append(f"{long_pauses} pause{'s' if long_pauses != 1 else ''} over 2 seconds")
+        elif per_min > 12:
+            problems.append(f"{pauses} hesitations in {round(duration)} seconds")
+        if duration >= 8 and speaking / duration < 0.6:
+            problems.append(f"speaking only {round(100 * speaking / duration)}% of the time")
+    pace = f", {metrics['wpm']} words per minute" if metrics.get("wpm") else ""
+    if problems:
+        joined = "; ".join(problems)
+        return False, joined[:1].upper() + joined[1:] + pace
+    return True, "No stalls, stutters or filler words caught" + pace
+
+
 def grade_intro(text: str, metrics: dict[str, Any], resume_terms: list[str]) -> dict[str, Any]:
     """Rubric for a pitch: present, past, future, proof, tie to the resume, length, delivery. Every item is a check on what was said."""
     words = len(_words(text))
-    low = text.lower()
     duration = metrics.get("duration_s")
     voiced = duration is not None
     if voiced:
@@ -432,13 +633,8 @@ def grade_intro(text: str, metrics: dict[str, Any], resume_terms: list[str]) -> 
     else:
         length_ok = 110 <= words <= 300
         length_detail = f"{words} words" + ("" if length_ok else (", aim for about 150 to 250" if words < 110 else ", trim it to under 300"))
-    fpm = metrics.get("fillers_per_min")
-    fillers = metrics.get("filler_total", 0)
-    delivery_ok = (fpm is not None and fpm <= 4) if voiced and fpm is not None else fillers <= 3
-    delivery_detail = (f"{fpm} filler words per minute" if fpm is not None else f"{fillers} filler words") + ("" if delivery_ok else ", cut the um/like/you know")
-    if metrics.get("wpm"):
-        delivery_detail += f", {metrics['wpm']} words per minute"
-    hits = [t for t in resume_terms if t and re.search(rf"(?<![a-z]){re.escape(t.lower())}(?![a-z])", low)]
+    delivery_ok, delivery_detail = _fluency(text, metrics)
+    hits = resume_hits(text, resume_terms)
     items = [
         {
             "key": "present",
@@ -450,7 +646,7 @@ def grade_intro(text: str, metrics: dict[str, Any], resume_terms: list[str]) -> 
         {
             "key": "past",
             "label": "Past: what you've done",
-            "points": 20,
+            "points": 15,
             "ok": bool(PAST_RE.search(text)),
             "detail": "Name one or two things you built, led or worked on.",
         },
@@ -478,7 +674,7 @@ def grade_intro(text: str, metrics: dict[str, Any], resume_terms: list[str]) -> 
             else "Attach a resume to check this.",
         },
         {"key": "length", "label": "Length", "points": 10, "ok": length_ok, "detail": length_detail},
-        {"key": "delivery", "label": "Delivery", "points": 10, "ok": delivery_ok, "detail": delivery_detail},
+        {"key": "delivery", "label": "Delivery: smooth, no stalls", "points": 15, "ok": delivery_ok, "detail": delivery_detail},
     ]
     scored = [i for i in items if i["ok"] is not None]
     possible = sum(i["points"] for i in scored)
@@ -524,8 +720,8 @@ def submit(store: Store, session_id: str, answer: AnswerIn) -> dict[str, Any]:
     if item["kind"] == "intro":
         terms: list[str] = []
         if s["resume_id"]:
-            view = resume_view(store, s["resume_id"])
-            terms = list(view.get("technologies") or [])
+            row = store.one("select text from resumes where id = ?", (s["resume_id"],))
+            terms = resume_terms(row["text"] if row else "")
         chk["intro"] = grade_intro(answer.transcript, metrics, terms)
     if item["kind"] == "technical":
         if answer.code:

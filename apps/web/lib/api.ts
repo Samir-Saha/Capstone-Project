@@ -121,6 +121,7 @@ export type Course = {
   hp: number;
   topics: Topic[];
   question_types: number;
+  from_notes?: number;
   active_session_id: string | null;
   victories: number;
   fights: number;
@@ -150,6 +151,7 @@ export type Question = {
   hint: string | null;
   hint_used: boolean;
   kind: string;
+  choices?: string[] | null;
   rematch: boolean;
   verification: { status: string; checks: string[] };
 };
@@ -218,6 +220,7 @@ export type FightResults = {
     answer: string;
     correct: boolean;
     grading_method: string;
+    correct_answer?: string;
     p_before: number;
     p_after: number;
     xp: number;
@@ -471,9 +474,10 @@ export const api = {
   progress: () => request<ProgressData>("/api/progress"),
   markSeen: (keys: string[]) => post<{ ok: boolean }>("/api/achievements/seen", { keys }),
   courses: () => request<Course[]>("/api/exam/courses"),
-  uploadCourse: (files: File[], name: string) => {
+  uploadCourse: (files: File[], name: string, text = "") => {
     const form = new FormData();
     for (const f of files) form.append("files", f);
+    if (text.trim()) form.append("text", text);
     form.append("name", name);
     return upload<UploadResult>("/api/exam/courses/upload", form);
   },
@@ -500,6 +504,7 @@ export const api = {
     form.append("file", file);
     return upload<Resume>("/api/interview/resume", form);
   },
+  pasteResume: (text: string) => post<Resume>("/api/interview/resume/text", { text }),
   latestResume: () => request<Resume | null>("/api/interview/resume/latest"),
   interviews: () => request<InterviewHistoryItem[]>("/api/interview/sessions"),
   startInterview: (body: { role: string; kind: string; length: number; resume_id: string | null }) =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, Lightbulb, ListOrdered, Repeat, ShieldCheck, Skull, Zap } from "lucide-react";
+import { BookOpen, Flag, Lightbulb, ListOrdered, Repeat, ShieldCheck, Skull, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -119,7 +119,7 @@ export default function FightPage() {
 
   // Live preview of how the answer was read.
   useEffect(() => {
-    if (!answer.trim()) {
+    if (!answer.trim() || q?.kind === "recall") {
       setPreview({ latex: null, error: null });
       return;
     }
@@ -131,7 +131,7 @@ export default function FightPage() {
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [answer]);
+  }, [answer, q?.kind]);
 
   useEffect(() => {
     if (q && !feedback && !grading) inputRef.current?.focus();
@@ -152,13 +152,16 @@ export default function FightPage() {
     setTimeout(() => setBursts((xs) => xs.filter((x) => x.id !== b.id)), big ? 1300 : 900);
   };
 
-  const strike = async () => {
-    const steps = showWork ? work.split("\n").filter((l) => l.trim()) : undefined;
-    if (!q || grading || (showWork ? !steps?.length : !answer.trim())) return;
+  const strike = async (picked?: string) => {
+    const working = showWork && q?.kind !== "recall";
+    const steps = working ? work.split("\n").filter((l) => l.trim()) : undefined;
+    const given = picked ?? answer;
+    if (!q || grading || (working ? !steps?.length : !given.trim())) return;
+    if (picked) setAnswer(picked);
     setGrading(true);
     setParseNote(null);
     try {
-      const fb = await api.answer(id, q.id, showWork ? "" : answer, steps);
+      const fb = await api.answer(id, q.id, working ? "" : given, steps);
       if (fb.status === "unparseable") {
         setParseNote(fb.message);
         return;
@@ -375,12 +378,18 @@ export default function FightPage() {
                 </span>
               )}
               <DifficultyPips level={q.difficulty} />
-              <span
-                className="ml-auto inline-flex items-center gap-1.5 text-heal"
-                title={`Answer key checked by: ${q.verification.checks.join(", ")}`}
-              >
-                <ShieldCheck size={15} aria-hidden /> Key verified
-              </span>
+              {q.kind === "recall" ? (
+                <span className="ml-auto inline-flex items-center gap-1.5 text-cyan" title={`Source: ${q.verification.checks.join(", ")}`}>
+                  <BookOpen size={15} aria-hidden /> {q.verification.checks[0]?.replace("quoted from your notes, ", "From your notes, ") ?? "From your notes"}
+                </span>
+              ) : (
+                <span
+                  className="ml-auto inline-flex items-center gap-1.5 text-heal"
+                  title={`Answer key checked by: ${q.verification.checks.join(", ")}`}
+                >
+                  <ShieldCheck size={15} aria-hidden /> Key verified
+                </span>
+              )}
             </div>
 
             <p className="mt-6 text-lg leading-relaxed">{q.prompt}</p>
@@ -400,6 +409,7 @@ export default function FightPage() {
               >
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm text-muted">{q.answer_format}</span>
+                  {q.kind !== "recall" && (
                   <button
                     type="button"
                     onClick={toggleWork}
@@ -410,8 +420,46 @@ export default function FightPage() {
                   >
                     <ListOrdered size={14} aria-hidden /> Show your work{showWork ? ": on" : ""}
                   </button>
+                  )}
                 </div>
-                {showWork ? (
+                {q.kind === "recall" && q.choices?.length ? (
+                  <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Choices">
+                    {q.choices.map((c, i) => (
+                      <button
+                        key={c}
+                        type="button"
+                        disabled={grading}
+                        onClick={() => void strike(c)}
+                        className={`flex min-h-[56px] items-center gap-3 rounded-panel border px-4 py-3 text-left transition hover:border-violet hover:bg-violet/10 active:scale-[0.99] disabled:opacity-60 ${
+                          grading && answer === c ? "border-violet bg-violet/15" : "border-line bg-ink/50"
+                        }`}
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised font-display text-sm text-muted">{i + 1}</span>
+                        <span className="font-medium">{c}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : q.kind === "recall" ? (
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <label htmlFor="answer" className="sr-only">
+                      Your answer
+                    </label>
+                    <input
+                      id="answer"
+                      ref={inputRef}
+                      className="field text-lg"
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      autoComplete="off"
+                      disabled={grading}
+                      placeholder="The missing word or phrase"
+                    />
+                    <button type="submit" className="btn-primary shrink-0 px-6" disabled={!answer.trim() || grading}>
+                      {grading ? "Checking" : "Strike"}
+                      <span className="kbd">Enter</span>
+                    </button>
+                  </div>
+                ) : showWork ? (
                   <>
                     <StepsEditor value={work} onChange={setWork} onSubmit={() => void strike()} disabled={grading} />
                     <div className="mt-3 flex items-center justify-between gap-3">
@@ -515,7 +563,7 @@ export default function FightPage() {
                     </div>
                   )}
                   {!feedback.correct && !feedback.rematch && feedback.session.status === "active" && (
-                    <p className="mt-3 text-xs text-violet-soft">This one will come back later in the fight with new numbers.</p>
+                    <p className="mt-3 text-xs text-violet-soft">This one will come back later in the fight{q.kind === "recall" ? "." : " with new numbers."}</p>
                   )}
                   <p className="mt-4 text-xs text-muted">Graded by {feedback.grading.method}, not by AI.</p>
                 </div>

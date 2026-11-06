@@ -21,6 +21,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from . import recall
 from .content.courses import BUILTIN_COURSES, QuestionTemplate
 from .progression import XP_RULES, award, exam_correct_xp
 from .store import Store, dumps, loads, local_day, new_id, now_iso
@@ -177,6 +178,7 @@ def list_courses(store: Store) -> list[dict[str, Any]]:
         wins = store.one("select count(*) n from exam_sessions where course_id = ? and outcome = 'victory'", (c["id"],))
         fights = store.one("select count(*) n from exam_sessions where course_id = ? and status = 'completed'", (c["id"],))
         n_templates = store.one("select count(*) n from templates where course_id = ?", (c["id"],))
+        n_notes = store.one('select count(*) n from templates where course_id = ? and body like \'{"kind":"recall"%\'', (c["id"],))
         out.append(
             {
                 "id": c["id"],
@@ -187,6 +189,7 @@ def list_courses(store: Store) -> list[dict[str, Any]]:
                 "hp": boss_hp(_mastery(store, ids)),
                 "topics": topic_view(store, ids),
                 "question_types": n_templates["n"],
+                "from_notes": n_notes["n"],
                 "active_session_id": active["id"] if active else None,
                 "victories": wins["n"],
                 "fights": fights["n"],
@@ -311,7 +314,8 @@ def _public_question(q: dict[str, Any], topic_name: str) -> dict[str, Any]:
         "prompt": q["prompt"],
         "latex": q["latex"],
         "answer_format": q["answer_format"],
-        "kind": MathTask.model_validate_json(q["task"]).kind,
+        "kind": _task_info(q)["kind"],
+        "choices": _task_info(q).get("choices") or None,
         "hint": q["hint"] if q["hint_used"] else None,
         "hint_used": bool(q["hint_used"]),
         "rematch": q["rematch_of"] is not None,
@@ -420,7 +424,8 @@ def next_question(store: Store, session_id: str, rng: random.Random | None = Non
     marks = ",".join("?" * len(scope))
     templates_by_topic: dict[str, list[tuple[str, QuestionTemplate]]] = {}
     for row in store.all(f"select id, topic_id, body from templates where topic_id in ({marks})", tuple(scope)):
-        templates_by_topic.setdefault(row["topic_id"], []).append((row["id"], QuestionTemplate.model_validate_json(row["body"])))
+        model = recall.RecallTemplate if recall.is_recall(row["body"]) else QuestionTemplate
+        templates_by_topic.setdefault(row["topic_id"], []).append((row["id"], model.model_validate_json(row["body"])))
     mastery = [m for m in _mastery(store, scope) if m.topic_id in templates_by_topic]
     if not mastery:
         raise ExamError(409, "No verified questions for these topics.")
@@ -445,6 +450,9 @@ def next_question(store: Store, session_id: str, rng: random.Random | None = Non
 
     while candidates:
         template_id, tpl = _pick_template(candidates, target, [] if rematch else recent_templates, rng)
+        if isinstance(tpl, recall.RecallTemplate):
+            _insert_recall(store, session_id, topic_id, template_id, tpl, rematch, rng)
+            return session_state(store, session_id)
         for _ in range(MAX_INSTANCE_TRIES):
             seed = rng.randrange(1, 2**31)
             result = _verify(tpl.spec, seed, use_pool)
@@ -478,6 +486,43 @@ def next_question(store: Store, session_id: str, rng: random.Random | None = Non
                 return session_state(store, session_id)
         candidates = [c for c in candidates if c[0] != template_id]
     raise ExamError(503, "Couldn't produce a verified question for this topic. The failure was logged.")
+
+
+def _insert_recall(store: Store, session_id: str, topic_id: str, template_id: str, tpl: recall.RecallTemplate, rematch, rng: random.Random) -> None:
+    choices = list(tpl.choices)
+    rng.shuffle(choices)
+    pages = ", ".join(str(p) for p in tpl.pages)
+    store.run(
+        "insert into exam_questions (id, session_id, topic_id, template_id, seed, difficulty, prompt, latex, task, answer, answer_latex, "
+        "rel_tol, hint, method, answer_format, verification, rematch_of, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            new_id(),
+            session_id,
+            topic_id,
+            template_id,
+            0,
+            tpl.difficulty,
+            tpl.prompt,
+            None,
+            dumps({"kind": "recall", "form": tpl.form, "choices": choices, "accept": tpl.accept}),
+            tpl.answer,
+            None,
+            None,
+            f"Starts with “{tpl.answer[:1].upper()}”, {len(tpl.answer)} characters."
+            if tpl.form == "short"
+            else "Look for the word that fits the grammar of the sentence.",
+            f"From your notes (page {pages}): “{tpl.quote}”",
+            "Pick one." if tpl.form == "mcq" else "Type the missing word or phrase. Small typos are fine.",
+            dumps([{"method": f"quoted from your notes, page {pages}"}]),
+            rematch["id"] if rematch else None,
+            now_iso(),
+        ),
+    )
+
+
+def _task_info(q: dict[str, Any]) -> dict[str, Any]:
+    raw = loads(q["task"]) or {}
+    return raw if raw.get("kind") == "recall" else {"kind": raw.get("kind")}
 
 
 def use_hint(store: Store, session_id: str, question_id: str) -> dict[str, Any]:
@@ -519,17 +564,24 @@ def submit_answer(store: Store, session_id: str, question_id: str, answer: str, 
     if s["status"] != "active":
         raise ExamError(409, "This fight is over.")
 
-    task = MathTask.model_validate_json(q["task"])
-    steps = [ln for ln in (steps or []) if ln.strip()][:20] or None
-    if steps:
-        answer = final_answer(task, steps)
-    answer = answer.strip()
-    if not answer:
-        raise ExamError(422, "Type an answer first.")
-    try:
-        grade, report = _grade(task, q, answer, steps, use_pool)
-    except VerificationTimeout:
-        return {"status": "unparseable", "message": "Checking that answer took too long. Try a simpler form."}
+    info = _task_info(q)
+    if info["kind"] == "recall":
+        answer = answer.strip()
+        if not answer:
+            raise ExamError(422, "Pick or type an answer first.")
+        grade, report = recall.grade(info, q["answer"], answer), None
+    else:
+        task = MathTask.model_validate_json(q["task"])
+        steps = [ln for ln in (steps or []) if ln.strip()][:20] or None
+        if steps:
+            answer = final_answer(task, steps)
+        answer = answer.strip()
+        if not answer:
+            raise ExamError(422, "Type an answer first.")
+        try:
+            grade, report = _grade(task, q, answer, steps, use_pool)
+        except VerificationTimeout:
+            return {"status": "unparseable", "message": "Checking that answer took too long. Try a simpler form."}
     if grade.correct is None:
         return {"status": "unparseable", "message": f"Couldn't read that answer ({grade.detail}). {q['answer_format']}."}
 
@@ -693,7 +745,7 @@ def results(store: Store, session_id: str) -> dict[str, Any]:
     state = session_state(store, session_id)
     start = loads(s["mastery_start"]) or {}
     rows = store.all(
-        "select q.topic_id, q.prompt, q.latex, q.answer_latex, q.method, q.difficulty, q.hint_used, q.rematch_of, a.answer, a.correct, "
+        "select q.topic_id, q.prompt, q.latex, q.answer_latex, q.answer correct_answer, q.method, q.difficulty, q.hint_used, q.rematch_of, a.answer, a.correct, "
         "a.method grading_method, a.p_before, a.p_after, a.hp_before, a.hp_after, a.xp, a.steps from exam_attempts a "
         "join exam_questions q on q.id = a.question_id where a.session_id = ? order by a.created_at",
         (session_id,),

@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import achievements, arena, exam, generation, interview, party, player, progress
-from .ingest.pdf import MAX_BYTES, ExtractionError, combine, extract_pdf
+from .ingest.pdf import MAX_BYTES, ExtractionError, combine, extract_pdf, extract_text
 from .llm import llm_from_env
 from .store import get_store
 from .tutor.knowledge_tracing import MODEL_VERSION
@@ -180,19 +180,36 @@ def courses() -> list[dict[str, Any]]:
 
 
 @app.post("/api/exam/courses/upload")
-async def upload_course(files: list[UploadFile] = File(...), name: str = Form(..., min_length=1, max_length=80)) -> dict[str, Any]:
+async def upload_course(
+    files: list[UploadFile] | None = File(None),
+    name: str = Form(..., min_length=1, max_length=80),
+    text: str = Form(""),
+) -> dict[str, Any]:
+    """PDFs, .txt/.md files and pasted notes, any mix, into one course."""
+    files = files or []
     if len(files) > MAX_UPLOAD_FILES:
-        raise HTTPException(413, detail=f"Up to {MAX_UPLOAD_FILES} PDFs at a time.")
+        raise HTTPException(413, detail=f"Up to {MAX_UPLOAD_FILES} files at a time.")
     named = []
     for f in files:
         fname = re.sub(r"[^\w.\- ]", "_", f.filename or "upload.pdf")[:120]
+        data = await _read_upload(f)
         try:
-            named.append((fname, extract_pdf(await _read_upload(f))))
+            if fname.lower().endswith((".txt", ".md", ".markdown")):
+                named.append((fname, extract_text(data.decode("utf-8", errors="replace"))))
+            else:
+                named.append((fname, extract_pdf(data)))
         except ExtractionError as err:
             raise HTTPException(422, detail=f"{fname}: {err}") from err
+    if text.strip():
+        try:
+            named.append(("Pasted notes", extract_text(text[:400_000])))
+        except ExtractionError as err:
+            raise HTTPException(422, detail=str(err)) from err
+    if not named:
+        raise HTTPException(422, detail="Add a file or paste some notes first.")
     extraction = combine(named)
     preview = {
-        "filename": named[0][0] if len(named) == 1 else f"{len(named)} PDFs",
+        "filename": named[0][0] if len(named) == 1 else f"{len(named)} sources",
         "files": [{"name": n, "pages": ex.page_count} for n, ex in named],
         "page_count": extraction.page_count,
         "char_count": extraction.char_count,
@@ -200,15 +217,13 @@ async def upload_course(files: list[UploadFile] = File(...), name: str = Form(..
         "sample": [{"pages": [c.page_start, c.page_end], "text": c.text[:280]} for c in extraction.chunks[:2]],
     }
     provider = llm_from_env()
-    if provider is None:
-        return {
-            "preview": preview,
-            "ai_available": False,
-            "job": None,
-            "message": "Text extracted. Turning it into questions needs an AI key (LLM_API_KEY and LLM_MODEL in .env). The built-in courses work without one.",
-        }
     job = generation.start_job(get_store(), provider, name.strip(), preview["filename"], extraction)
-    return {"preview": preview, "ai_available": True, "job": job, "message": "Building your boss."}
+    return {
+        "preview": preview,
+        "ai_available": provider is not None,
+        "job": job,
+        "message": "Building your boss." if provider else "Building your boss from your notes. No AI key is set, so questions come straight from your text.",
+    }
 
 
 @app.get("/api/jobs/{job_id}")
@@ -420,6 +435,15 @@ def submit_code(slug: str, req: CodeRequest) -> dict[str, Any]:
 async def upload_resume(file: UploadFile = File(...)) -> dict[str, Any]:
     data = await _read_upload(file)
     return interview.upload_resume(get_store(), file.filename or "resume.pdf", data)
+
+
+class ResumeText(BaseModel):
+    text: str = Field(min_length=1, max_length=60_000)
+
+
+@app.post("/api/interview/resume/text")
+def upload_resume_text(body: ResumeText) -> dict[str, Any]:
+    return interview.upload_resume_text(get_store(), body.text)
 
 
 @app.get("/api/interview/resume/latest")

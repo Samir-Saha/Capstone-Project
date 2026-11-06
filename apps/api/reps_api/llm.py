@@ -68,21 +68,49 @@ class AnthropicProvider:
         return Completion(text=text, input_tokens=usage.get("input_tokens"), output_tokens=usage.get("output_tokens"))
 
 
+RETRY_STATUS = {429, 500, 502, 503, 504}
+RETRIES = 3
+BACKOFF_S = 2.0
+GEMINI_FALLBACKS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
+
+
 class OpenAICompatibleProvider:
     name = "openai"
 
-    def __init__(self, api_key: str, model: str, base_url: str | None = None, client: httpx.Client | None = None, timeout_s: float = 90) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str | None = None,
+        client: httpx.Client | None = None,
+        timeout_s: float = 90,
+        fallbacks: list[str] | None = None,
+    ) -> None:
         self.model = model
         self.base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
         self.client = client or httpx.Client(timeout=timeout_s)
         self.headers = {"authorization": f"Bearer {api_key}", "content-type": "application/json"}
+        self.fallbacks = [m for m in (fallbacks or []) if m and m != model]
 
     def complete(self, system: str, messages: list[dict[str, str]], max_tokens: int) -> Completion:
-        resp = self.client.post(
-            f"{self.base_url}/chat/completions",
-            headers=self.headers,
-            json={"model": self.model, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, *messages]},
-        )
+        # Busy or rate-limited services get retried with backoff, then the fallback models are tried in order.
+        resp = None
+        for model in [self.model, *self.fallbacks]:
+            for attempt in range(RETRIES):
+                resp = self.client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=self.headers,
+                    json={"model": model, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, *messages]},
+                )
+                if resp.status_code not in RETRY_STATUS:
+                    break
+                log.warning("%s busy (%s), retry %d", model, resp.status_code, attempt + 1)
+                time.sleep(BACKOFF_S * 2**attempt)
+            if resp.status_code < 400:
+                break
+            if resp.status_code not in RETRY_STATUS and resp.status_code != 404:
+                break  # bad key or bad request: another model won't help
+        assert resp is not None
         if resp.status_code >= 400:
             raise LLMError(f"openai-compatible API returned {resp.status_code}: {resp.text[:300]}")
         data = resp.json()
@@ -123,7 +151,9 @@ def llm_from_env() -> LLMProvider | None:
     if provider == "anthropic":
         return AnthropicProvider(key, model, base)
     if provider in ("openai", "openai-compatible"):
-        return OpenAICompatibleProvider(key, model, base)
+        env = os.environ.get("LLM_FALLBACK_MODELS")
+        fallbacks = [m.strip() for m in env.split(",")] if env else (GEMINI_FALLBACKS if base and "generativelanguage" in base else [])
+        return OpenAICompatibleProvider(key, model, base, fallbacks=fallbacks)
     raise LLMError(f"unknown LLM_PROVIDER {provider!r}")
 
 

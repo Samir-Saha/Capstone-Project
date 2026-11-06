@@ -132,3 +132,23 @@ def combine(named: list[tuple[str, Extraction]]) -> Extraction:
         text_pages=sum(ex.text_pages for _, ex in named),
         char_count=sum(ex.char_count for _, ex in named),
     )
+
+
+TEXT_PAGE_CHARS = 3000
+
+
+def extract_text(text: str) -> Extraction:
+    """Pasted notes or a .txt/.md file: split into ~3,000-character "pages" on paragraph breaks."""
+    text = _clean(text.replace("\r\n", "\n"))
+    if len(text.strip()) < 200:
+        raise ExtractionError("That's too little text to build questions from. Paste at least a paragraph or two.")
+    pages: list[Page] = []
+    buf = ""
+    for para in re.split(r"\n\s*\n", text):
+        if buf and len(buf) + len(para) > TEXT_PAGE_CHARS:
+            pages.append(Page(number=len(pages) + 1, text=buf.strip()))
+            buf = ""
+        buf += para + "\n\n"
+    if buf.strip():
+        pages.append(Page(number=len(pages) + 1, text=buf.strip()))
+    return Extraction(pages=pages, chunks=chunk_pages(pages), page_count=len(pages), text_pages=len(pages), char_count=sum(len(p.text) for p in pages))

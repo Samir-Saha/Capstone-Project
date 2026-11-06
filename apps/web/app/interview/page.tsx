@@ -29,6 +29,8 @@ export default function InterviewSetup() {
   const [resume, setResume] = useState<Resume | null>(null);
   const [useResume, setUseResume] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState("");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<InterviewHistoryItem[]>([]);
@@ -133,6 +135,50 @@ export default function InterviewSetup() {
             </button>
             <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
           </div>
+          {!pasting ? (
+            <button type="button" className="mt-3 text-sm text-muted underline-offset-4 hover:text-text hover:underline" onClick={() => setPasting(true)}>
+              No PDF handy? Paste your resume text instead
+            </button>
+          ) : (
+            <div className="mt-4">
+              <label htmlFor="resume-text" className="label">
+                Resume text
+              </label>
+              <textarea
+                id="resume-text"
+                className="field min-h-[140px] resize-y text-sm"
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                placeholder="Paste everything: experience, projects, skills. One bullet per line works best."
+              />
+              <div className="mt-2 flex gap-3">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={uploading || pasted.trim().length < 80}
+                  onClick={async () => {
+                    setUploading(true);
+                    setError(null);
+                    try {
+                      setResume(await api.pasteResume(pasted));
+                      setUseResume(true);
+                      setPasting(false);
+                      setPasted("");
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                >
+                  {uploading ? "Reading" : "Use this resume"}
+                </button>
+                <button type="button" className="text-sm text-muted hover:text-text" onClick={() => setPasting(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {resume && (
             <div className="mt-5">
               <label className="flex items-center gap-2 text-sm">

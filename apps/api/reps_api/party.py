@@ -248,7 +248,8 @@ class PartyHub:
         if topic_ids:
             marks = ",".join("?" * len(topic_ids))
             for row in store.all(f"select id, topic_id, body from templates where topic_id in ({marks})", tuple(topic_ids)):
-                templates.setdefault(row["topic_id"], []).append((row["id"], QuestionTemplate.model_validate_json(row["body"])))
+                if not row["body"].lstrip().startswith('{"kind":"recall"'):  # party raids use computed questions only for now
+                    templates.setdefault(row["topic_id"], []).append((row["id"], QuestionTemplate.model_validate_json(row["body"])))
         if not templates:
             raise PartyError(409, "This course has no verified question types yet.")
         room = Room(

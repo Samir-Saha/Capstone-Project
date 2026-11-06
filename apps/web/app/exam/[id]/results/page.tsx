@@ -171,7 +171,7 @@ export default function Results() {
                 </p>
                 <p className="mt-1">
                   <span className="text-muted">Answer: </span>
-                  {a.answer_latex ? <TeX tex={a.answer_latex} /> : "—"}
+                  {a.answer_latex ? <TeX tex={a.answer_latex} /> : (a.correct_answer ?? "—")}
                 </p>
                 {!a.correct && a.method && <p className="mt-1 text-muted">{a.method}</p>}
                 {a.steps && a.steps.lines.length > 0 && (
