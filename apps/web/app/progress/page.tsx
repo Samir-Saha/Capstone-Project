@@ -52,6 +52,57 @@ export default function ProgressPage() {
         <Stat value={t.interviews} label="Interviews finished" />
       </section>
 
+      {data.readiness && data.readiness.length > 0 && (
+        <section className="panel p-6" aria-labelledby="ready-title">
+          <h2 id="ready-title" className="h-display text-xl">
+            Exam readiness
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Average mastery after forgetting is applied. A topic counts as ready at 75%, the same bar a boss fight uses.
+          </p>
+          <ul className="mt-5 grid gap-5 md:grid-cols-2">
+            {data.readiness.map((r) => {
+              const pct = Math.round(r.readiness * 100);
+              const tone = r.readiness >= 0.75 ? "bg-heal" : r.readiness >= 0.5 ? "bg-xp" : "bg-hp";
+              const todo = r.weakest.filter((w) => w.mastery < 0.75);
+              return (
+                <li key={r.course_id} className="rounded-xl p-4 ring-1 ring-line">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-semibold">{r.course}</span>
+                    <span className="h-display text-2xl tabular-nums">{pct}%</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink ring-1 ring-line">
+                    <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="mt-2 text-sm text-muted">
+                    {r.ready_topics}/{r.total_topics} topics ready
+                    {r.fading_topics > 0 && `, ${r.fading_topics} fading since last practice`}
+                  </p>
+                  {todo.length > 0 ? (
+                    <div className="mt-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Practice next</p>
+                      <ul className="mt-1.5 space-y-1 text-sm">
+                        {todo.map((w) => (
+                          <li key={w.name} className="flex justify-between gap-3">
+                            <span>{w.name}</span>
+                            <span className="tabular-nums text-muted">
+                              {Math.round(w.mastery * 100)}%
+                              {w.attempts > 0 ? ` · ${w.attempts} answered` : " · not tried"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-heal">Every topic is at the bar. Keep it there with a short daily fight.</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <section className="panel p-6" aria-labelledby="mastery-title">
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <h2 id="mastery-title" className="h-display text-xl">

@@ -37,7 +37,7 @@ function SpeedTier({ scale }: { scale: NonNullable<CodeResult["scale"]> }) {
         </span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink" aria-hidden>
-        <div className={`h-full rounded-full ${fast ? "bg-cyan" : "bg-xp"}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${fast ? "bg-cyan" : "bg-sun"}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-2 text-sm text-muted">
         {scale.ms !== null ? `${fmtMs(scale.ms)} on the large input` : scale.detail ?? "Didn't finish"}, limit {fmtMs(scale.limit_ms)}.

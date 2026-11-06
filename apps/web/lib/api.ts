@@ -58,6 +58,15 @@ export type ProgressData = {
     now: Record<string, number>;
   }[];
   xp_by_day: { day: string; xp: number }[];
+  readiness?: {
+    course_id: string;
+    course: string;
+    readiness: number;
+    ready_topics: number;
+    total_topics: number;
+    fading_topics: number;
+    weakest: { name: string; mastery: number; attempts: number; accuracy: number | null }[];
+  }[];
   accuracy_by_course: { course: string; answered: number; correct: number }[];
   verification: Record<string, Record<string, number>>;
   rejection_reasons: { subject: string; reason: string; n: number }[];
@@ -303,7 +312,16 @@ export type CodeResult = {
 };
 
 export type ResumeClaim = { text: string; measurable: boolean; technologies: string[] };
-export type Resume = { id: string; filename: string; extraction: string; claims: ResumeClaim[]; technologies: string[]; created_at: string };
+export type ResumeReviewItem = { text: string; strengths: string[]; fixes: string[]; ready: boolean };
+export type Resume = {
+  id: string;
+  filename: string;
+  extraction: string;
+  claims: ResumeClaim[];
+  technologies: string[];
+  review?: { items: ResumeReviewItem[]; ready: number; total: number; with_numbers: number };
+  created_at: string;
+};
 
 export type InterviewQuestion = {
   index: number;

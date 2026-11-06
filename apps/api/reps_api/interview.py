@@ -190,6 +190,48 @@ def extract_claims(text: str) -> list[ResumeClaim]:
     return claims
 
 
+WEAK_OPENERS = re.compile(r"^(helped|assisted|worked on|worked with|responsible for|participated|involved in|tasked with|duties)\b", re.I)
+OUTCOME = re.compile(
+    r"\b(reduc|increas|improv|cut|sav|grew|grow|boost|rais|lower|speed|faster|decreas|won|placed|ranked|launched|shipped|"
+    r"adopted|used by|serving|resulting|so that|leading to|enabl)\w*",
+    re.I,
+)
+
+
+EDUCATION = re.compile(r"\b(university|college|institute|b\.?s\.?|b\.?a\.?|bachelor|master|ph\.?d|gpa|dean'?s list|expected|class of)\b", re.I)
+
+
+def review_claim(text: str) -> dict[str, Any]:
+    """Rule-based feedback on one resume line: the same checks the Gauntlet's follow-ups lean on."""
+    strengths: list[str] = []
+    fixes: list[str] = []
+    stripped = BULLET.sub("", text).strip()
+    if EDUCATION.search(stripped) and not ACTION_VERBS.match(stripped):
+        # Degree and school lines are facts, not achievements: no outcome to coach.
+        return {"text": text, "strengths": ["education line"], "fixes": [], "ready": True}
+    if NUMBERISH.search(stripped):
+        strengths.append("has a number")
+    else:
+        fixes.append("Add a number: how many users, how much faster, how big the team was.")
+    if OUTCOME.search(stripped):
+        strengths.append("states an outcome")
+    else:
+        fixes.append("Say what changed because of your work, not just what you did.")
+    if WEAK_OPENERS.match(stripped):
+        fixes.append("Open with what you did (built, led, cut) instead of \u201c" + WEAK_OPENERS.match(stripped).group(0).lower() + "\u201d.")
+    elif ACTION_VERBS.match(stripped):
+        strengths.append("opens with an action verb")
+    if len(stripped.split()) > 32:
+        fixes.append("Trim it: aim for one line, about 25 words.")
+    return {"text": text, "strengths": strengths, "fixes": fixes, "ready": not fixes}
+
+
+def resume_review(claims: list[dict[str, Any]]) -> dict[str, Any]:
+    items = [review_claim(c["text"]) for c in claims]
+    ready = sum(1 for i in items if i["ready"])
+    return {"items": items, "ready": ready, "total": len(items), "with_numbers": sum(1 for c in claims if c["measurable"])}
+
+
 def upload_resume(store: Store, filename: str, data: bytes) -> dict[str, Any]:
     try:
         extraction = extract_pdf(data)
@@ -226,6 +268,7 @@ def resume_view(store: Store, resume_id: str) -> dict[str, Any]:
         "extraction": r["extraction"],
         "claims": claims,
         "technologies": sorted({t for c in claims for t in c["technologies"]}),
+        "review": resume_review(claims),
         "created_at": r["created_at"],
     }
 
@@ -654,6 +697,9 @@ def _fluency(text: str, metrics: dict[str, Any]) -> tuple[bool, str]:
     if problems:
         joined = "; ".join(problems)
         return False, joined[:1].upper() + joined[1:] + pace
+    if fillers:
+        minor = f"{fillers} filler word{'s' if fillers != 1 else ''}, within normal range"
+        return True, "No stalls or stutters; " + minor + pace
     return True, "No stalls, stutters or filler words caught" + pace
 
 

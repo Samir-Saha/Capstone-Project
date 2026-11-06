@@ -87,7 +87,7 @@ export default function InterviewSetup() {
               <label
                 key={id}
                 className={`flex cursor-pointer items-center gap-3 rounded-panel border p-4 transition ${
-                  role === id ? "border-xp bg-xp/10" : "border-line bg-surface hover:border-xp/50"
+                  role === id ? "border-sun bg-sun/[0.14] shadow-lift ring-2 ring-sun/40" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:border-sun hover:shadow-lift"
                 }`}
               >
                 <input type="radio" name="role" value={id} checked={role === id} onChange={() => setRole(id)} className="sr-only" />
@@ -104,7 +104,7 @@ export default function InterviewSetup() {
             {KINDS.map((k) => (
               <label
                 key={k.id}
-                className={`cursor-pointer rounded-panel border p-4 transition ${kind === k.id ? "border-xp bg-xp/10" : "border-line bg-surface hover:border-xp/50"}`}
+                className={`cursor-pointer rounded-panel border p-4 transition ${kind === k.id ? "border-sun bg-sun/[0.14] shadow-lift ring-2 ring-sun/40" : "border-line bg-surface shadow-card hover:-translate-y-0.5 hover:border-sun hover:shadow-lift"}`}
               >
                 <input type="radio" name="kind" value={k.id} checked={kind === k.id} onChange={() => setKind(k.id)} className="sr-only" />
                 <div className="font-display font-semibold">{k.label}</div>
@@ -117,7 +117,7 @@ export default function InterviewSetup() {
               <label htmlFor="length" className="text-sm text-muted">
                 Questions
               </label>
-              <input id="length" type="range" min={2} max={6} value={length} onChange={(e) => setLength(Number(e.target.value))} className="w-48 accent-[#FFC857]" />
+              <input id="length" type="range" min={2} max={6} value={length} onChange={(e) => setLength(Number(e.target.value))} className="w-48 accent-[#6D4AFF]" />
               <span className="font-display font-semibold tabular-nums">{length}</span>
               <span className="text-sm text-muted">plus up to 2 follow-ups</span>
             </div>
@@ -182,25 +182,68 @@ export default function InterviewSetup() {
           {resume && (
             <div className="mt-5">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={useResume} onChange={(e) => setUseResume(e.target.checked)} className="accent-[#FFC857]" />
+                <input type="checkbox" checked={useResume} onChange={(e) => setUseResume(e.target.checked)} className="accent-[#6D4AFF]" />
                 Use {resume.filename} ({resume.claims.length} claims found, {measurable.length} with numbers)
               </label>
-              {measurable.length > 0 && (
-                <ul className="mt-3 space-y-2 text-sm">
-                  {measurable.slice(0, 4).map((c, i) => (
-                    <li key={i} className="rounded-chip border border-line bg-ink/50 px-3 py-2">
-                      {c.text}
-                    </li>
-                  ))}
-                </ul>
+              {resume.review && resume.review.total > 0 ? (
+                <div className="mt-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 className="font-display text-base font-semibold">Resume check</h3>
+                    <span className="text-sm text-muted">
+                      <span className={`font-semibold tabular-nums ${resume.review.ready === resume.review.total ? "text-heal" : "text-text"}`}>
+                        {resume.review.ready}/{resume.review.total}
+                      </span>{" "}
+                      lines interview-ready
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-raised" aria-hidden>
+                    <div className="h-full rounded-full bg-heal transition-[width] duration-700" style={{ width: `${(100 * resume.review.ready) / resume.review.total}%` }} />
+                  </div>
+                  <ul className="mt-3 max-h-[340px] space-y-2 overflow-y-auto pr-1 text-sm">
+                    {[...resume.review.items]
+                      .sort((a, b) => Number(a.ready) - Number(b.ready))
+                      .map((item, i) => (
+                        <li key={i} className={`rounded-chip border px-3 py-2.5 ${item.ready ? "border-heal/30 bg-heal/[0.05]" : "border-line bg-surface"}`}>
+                          <p className="text-text">{item.text}</p>
+                          {item.strengths.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {item.strengths.map((s) => (
+                                <span key={s} className="rounded-full bg-heal/10 px-2 py-0.5 text-xs text-heal">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {item.fixes.map((f) => (
+                            <p key={f} className="mt-1.5 text-xs text-muted">
+                              <span className="font-semibold text-xp">Fix: </span>
+                              {f}
+                            </p>
+                          ))}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : (
+                measurable.length > 0 && (
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {measurable.slice(0, 4).map((c, i) => (
+                      <li key={i} className="rounded-chip border border-line bg-ink/50 px-3 py-2">
+                        {c.text}
+                      </li>
+                    ))}
+                  </ul>
+                )
               )}
-              <p className="mt-3 text-xs text-muted">Found with simple rules (bullets and numbers), not AI. Nothing is assumed true or false.</p>
+              <p className="mt-3 text-xs text-muted">
+                Checked with simple rules (numbers, outcomes, opening verbs), not AI. The Gauntlet presses hardest on lines with numbers.
+              </p>
             </div>
           )}
         </section>
 
         {error && <ErrorNote message={error} />}
-        <button type="button" className="btn w-full bg-xp py-3.5 text-lg text-ink hover:bg-[#ffd47a] sm:w-auto sm:px-10" onClick={start} disabled={starting}>
+        <button type="button" className="btn-sun w-full py-3.5 text-lg sm:w-auto sm:px-10" onClick={start} disabled={starting}>
           <Mic size={18} aria-hidden /> {starting ? "Setting up the room" : "Enter the room"}
         </button>
       </div>

@@ -109,7 +109,7 @@ export default function Hub() {
         </h2>
         <Link
           href={featured?.active_session_id ? `/exam/${featured.active_session_id}` : "/exam"}
-          className="group relative overflow-hidden rounded-panel border border-line bg-gradient-to-br from-[#241944] to-surface p-6 transition hover:border-violet/70"
+          className="group relative overflow-hidden rounded-panel border border-line bg-gradient-to-br from-violet/[0.09] to-surface p-6 shadow-card lift hover:border-violet/70"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -133,7 +133,7 @@ export default function Hub() {
           </span>
         </Link>
 
-        <Link href="/arena" className="group rounded-panel border border-line bg-gradient-to-br from-[#10303A] to-surface p-6 transition hover:border-cyan/70">
+        <Link href="/arena" className="group rounded-panel border border-line bg-gradient-to-br from-cyan/[0.09] to-surface p-6 shadow-card lift hover:border-cyan/70">
           <div className="flex items-center gap-2 font-display text-sm font-semibold text-cyan">
             <Code2 size={16} aria-hidden /> Arena
           </div>
@@ -155,7 +155,7 @@ export default function Hub() {
           <span className="btn-cyan mt-5">Enter the Arena</span>
         </Link>
 
-        <Link href="/interview" className="group rounded-panel border border-line bg-gradient-to-br from-[#3A2A10] to-surface p-6 transition hover:border-xp/70">
+        <Link href="/interview" className="group rounded-panel border border-line bg-gradient-to-br from-sun/[0.16] to-surface p-6 shadow-card lift hover:border-xp/70">
           <div className="flex items-center gap-2 font-display text-sm font-semibold text-xp">
             <Mic size={16} aria-hidden /> Gauntlet
           </div>
@@ -164,7 +164,7 @@ export default function Hub() {
           <div className="mt-5 font-display text-sm text-muted">
             <span className="text-3xl font-bold text-text">{doneInterviews}</span> finished
           </div>
-          <span className="btn mt-5 bg-xp text-ink hover:bg-[#ffd47a]">Start an interview</span>
+          <span className="btn mt-5 btn-sun">Start an interview</span>
         </Link>
       </section>
 
@@ -198,7 +198,7 @@ export default function Hub() {
 
         <div className="space-y-6">
           <RaidCard raid={player.raid} />
-          <Link href="/party" className="panel group flex items-center gap-4 p-5 transition hover:border-cyan/60">
+          <Link href="/party" className="panel lift group flex items-center gap-4 p-5 hover:border-cyan/60">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan/15 text-cyan ring-1 ring-cyan/40">
               <Users size={22} aria-hidden />
             </span>
@@ -212,7 +212,7 @@ export default function Hub() {
             <ul className="mt-4 space-y-2 text-sm">
               {player.continue.exam && (
                 <li>
-                  <Link className="flex justify-between rounded-chip bg-raised px-3 py-2.5 hover:bg-line" href={`/exam/${player.continue.exam.id}`}>
+                  <Link className="flex justify-between rounded-chip bg-raised px-3 py-2.5 transition hover:bg-violet/10 hover:text-violet-deep" href={`/exam/${player.continue.exam.id}`}>
                     <span>Fight {player.continue.exam.boss_name}</span>
                     <span className="text-hp">{player.continue.exam.hp_current} HP</span>
                   </Link>
@@ -220,7 +220,7 @@ export default function Hub() {
               )}
               {player.continue.coding && (
                 <li>
-                  <Link className="flex justify-between rounded-chip bg-raised px-3 py-2.5 hover:bg-line" href={`/arena/${player.continue.coding.slug}`}>
+                  <Link className="flex justify-between rounded-chip bg-raised px-3 py-2.5 transition hover:bg-violet/10 hover:text-violet-deep" href={`/arena/${player.continue.coding.slug}`}>
                     <span>{problems.find((p) => p.slug === player.continue.coding?.slug)?.title ?? "Unsolved problem"}</span>
                     <span className="text-muted">{timeAgo(player.continue.coding.last)}</span>
                   </Link>
@@ -228,7 +228,7 @@ export default function Hub() {
               )}
               {player.continue.interview && (
                 <li>
-                  <Link className="flex justify-between rounded-chip bg-raised px-3 py-2.5 hover:bg-line" href={`/interview/${player.continue.interview.id}`}>
+                  <Link className="flex justify-between rounded-chip bg-raised px-3 py-2.5 transition hover:bg-violet/10 hover:text-violet-deep" href={`/interview/${player.continue.interview.id}`}>
                     <span>Unfinished interview</span>
                     <span className="text-muted">{timeAgo(player.continue.interview.started_at)}</span>
                   </Link>

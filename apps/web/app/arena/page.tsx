@@ -72,7 +72,7 @@ export default function Arena() {
               <li key={p.slug}>
                 <Link
                   href={`/arena/${p.slug}`}
-                  className="grid grid-cols-[28px_1fr_auto] items-center gap-4 px-5 py-4 transition-colors hover:bg-raised/60 md:grid-cols-[28px_1fr_160px_90px_110px]"
+                  className="grid grid-cols-[28px_1fr_auto] items-center gap-4 px-5 py-4 group transition-all hover:bg-violet/[0.05] hover:pl-6 md:grid-cols-[28px_1fr_160px_90px_110px]"
                 >
                   {STATUS_ICON[p.status]}
                   <span className="flex items-center gap-2 font-display text-lg font-semibold">

@@ -278,7 +278,7 @@ function Room({ code, seat, onLost }: { code: string; seat: PartySeat; onLost: (
                 {floaters.map((f, i) => (
                   <div key={f.id} className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ top: `${28 + (i % 3) * 12}%` }} aria-hidden>
                     <span
-                      className={`animate-rise whitespace-nowrap font-display font-bold drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] ${f.mine ? "text-5xl text-xp" : "text-2xl text-cyan"}`}
+                      className={`animate-rise whitespace-nowrap font-display font-bold drop-shadow-[0_2px_6px_rgba(255,255,255,0.9)] ${f.mine ? "text-5xl text-xp" : "text-2xl text-cyan"}`}
                     >
                       {f.text}
                     </span>
@@ -388,7 +388,7 @@ function Room({ code, seat, onLost }: { code: string; seat: PartySeat; onLost: (
                             type="button"
                             disabled={sending || room.status !== "active"}
                             onClick={() => strike(c)}
-                            className="flex min-h-[52px] items-center gap-3 rounded-panel border border-line bg-ink/50 px-4 py-3 text-left transition hover:border-violet hover:bg-violet/10 disabled:opacity-60"
+                            className="flex min-h-[52px] items-center gap-3 rounded-panel border border-line bg-surface px-4 py-3 text-left shadow-card transition hover:-translate-y-0.5 hover:border-violet hover:bg-violet/[0.06] hover:shadow-lift disabled:opacity-60"
                           >
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised font-display text-sm text-muted">{i + 1}</span>
                             <span className="font-medium">{c}</span>
@@ -577,7 +577,7 @@ function SharedHp({ hp, start }: { hp: number; start: number }) {
         </span>
       </div>
       <div className="relative h-5 w-full overflow-hidden rounded-md bg-ink/80 p-[3px] ring-1 ring-line" role="meter" aria-valuemin={0} aria-valuemax={start} aria-valuenow={hp} aria-label="Boss HP">
-        <div className="absolute inset-y-[3px] left-[3px] rounded-[3px] bg-[#FFE3A3] transition-[width] delay-[450ms] duration-[650ms] ease-in" style={{ width: `calc(${pct}% - 6px)` }} />
+        <div className="absolute inset-y-[3px] left-[3px] rounded-[3px] bg-[#FFD27A] transition-[width] delay-[450ms] duration-[650ms] ease-in" style={{ width: `calc(${pct}% - 6px)` }} />
         <div className="relative h-full rounded-[3px] bg-gradient-to-r from-[#FF3D66] to-hp transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -612,7 +612,7 @@ function Leaderboard({ room, meId }: { room: PartyRoom; meId: string }) {
               </span>
             </div>
             <div className="ml-7 mt-1 h-1.5 overflow-hidden rounded-full bg-ink ring-1 ring-line">
-              <div className="h-full rounded-full bg-xp transition-[width] duration-500" style={{ width: `${(p.damage / top) * 100}%` }} />
+              <div className="h-full rounded-full bg-sun transition-[width] duration-500" style={{ width: `${(p.damage / top) * 100}%` }} />
             </div>
           </li>
         ))}

@@ -61,7 +61,7 @@ export function RaidCard({ raid }: { raid: RaidPreview }) {
         </ul>
       )}
       {raid.topics.length > 0 && !done && (
-        <button type="button" className="btn mt-4 w-full bg-xp text-ink hover:bg-[#ffd47a]" onClick={go} disabled={busy}>
+        <button type="button" className="btn mt-4 w-full btn-sun" onClick={go} disabled={busy}>
           {busy ? "Opening" : active ? "Resume today's raid" : "Start today's raid"}
         </button>
       )}

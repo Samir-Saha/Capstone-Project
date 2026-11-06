@@ -55,7 +55,7 @@ def test_math_preview(client):
 
 def test_arena_hides_hidden_tests_and_awards_xp_once(client):
     problems = client.get("/api/coding/problems").json()
-    assert len(problems) == 8 and problems[0]["difficulty"] == "easy"
+    assert len(problems) == 12 and problems[0]["difficulty"] == "easy"
     slug = arena.slug(LONGEST_BUDGET_WINDOW.title)
     detail = client.get(f"/api/coding/problems/{slug}").json()
     assert "def solve(minutes, budget):" not in str(detail)
@@ -180,3 +180,12 @@ def test_interview_over_http(client):
     assert out["turn"]["metrics"]["pause_count"] == 1
     rep = client.post(f"/api/interview/sessions/{s['id']}/finish").json()
     assert rep["status"] == "completed" and rep["summary"]["voice_answers"] == 1
+
+
+def test_progress_reports_readiness_per_course(client):
+    data = client.get("/api/progress").json()
+    assert "readiness" in data
+    for r in data["readiness"]:
+        assert 0 <= r["readiness"] <= 1
+        assert 0 <= r["ready_topics"] <= r["total_topics"]
+        assert len(r["weakest"]) <= 3

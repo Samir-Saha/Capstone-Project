@@ -297,7 +297,7 @@ export default function FightPage() {
           ))}
           {phaseBanner !== null && (
             <div key={phaseBanner} className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 animate-pop text-center" role="status">
-              <div className="mx-auto inline-block rounded-panel border border-hp/60 bg-ink/90 px-5 py-3 shadow-[0_0_40px_-6px_rgba(255,61,102,0.7)]">
+              <div className="mx-auto inline-block rounded-panel border border-hp/60 bg-surface/95 px-5 py-3 shadow-[0_0_40px_-6px_rgba(255,61,102,0.7)]">
                 <div className="font-display text-xl font-bold text-hp">Phase 2</div>
                 <div className="text-sm text-muted">{fight.boss_name} is enraged. Harder questions from here.</div>
               </div>
@@ -306,7 +306,7 @@ export default function FightPage() {
           {floaters.map((f) => (
             <div key={f.id} className={`pointer-events-none absolute inset-x-0 flex justify-center ${f.tone === "note" ? "top-2/3" : "top-1/3"}`} aria-hidden>
               <span
-                className={`animate-rise whitespace-nowrap font-display font-bold drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] ${
+                className={`animate-rise whitespace-nowrap font-display font-bold drop-shadow-[0_2px_6px_rgba(255,255,255,0.9)] ${
                   f.tone === "dmg" ? "text-5xl text-xp" : f.tone === "heal" ? "text-2xl text-hp" : "text-xl text-muted"
                 }`}
               >
@@ -321,7 +321,7 @@ export default function FightPage() {
             <span
               key={comboKey}
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 transition-colors ${
-                fight.combo >= 3 ? "animate-ignite bg-xp/15 text-xp shadow-[0_0_14px_-2px_rgba(255,200,87,0.6)]" : "text-muted"
+                fight.combo >= 3 ? "animate-ignite bg-xp/15 text-xp shadow-[0_0_14px_-2px_rgba(224,154,0,0.5)]" : "text-muted"
               }`}
               title="Correct answers in a row. Every 3 adds bonus XP."
             >
@@ -430,8 +430,8 @@ export default function FightPage() {
                         type="button"
                         disabled={grading}
                         onClick={() => void strike(c)}
-                        className={`flex min-h-[56px] items-center gap-3 rounded-panel border px-4 py-3 text-left transition hover:border-violet hover:bg-violet/10 active:scale-[0.99] disabled:opacity-60 ${
-                          grading && answer === c ? "border-violet bg-violet/15" : "border-line bg-ink/50"
+                        className={`flex min-h-[56px] items-center gap-3 rounded-panel border px-4 py-3 text-left shadow-card transition hover:-translate-y-0.5 hover:border-violet hover:bg-violet/[0.06] hover:shadow-lift active:scale-[0.99] disabled:opacity-60 ${
+                          grading && answer === c ? "border-violet bg-violet/15" : "border-line bg-surface"
                         }`}
                       >
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised font-display text-sm text-muted">{i + 1}</span>

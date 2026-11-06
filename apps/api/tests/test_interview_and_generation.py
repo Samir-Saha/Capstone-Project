@@ -249,3 +249,40 @@ def test_ai_concept_questions_are_grounded_or_dropped(store):
     assert len(concept) == 1 and '"form":"mcq"' in concept[0]["body"]
     reasons = {r["reason"] for r in store.all("select reason from verification_log where method = 'grounded-concept' and status = 'rejected'")}
     assert reasons == {"source quote not found in the material", "question gives away the answer"}
+
+
+def test_pasted_markdown_headings_and_bullets_become_topics():
+    from reps_api import recall
+    from reps_api.ingest.pdf import Extraction, Page
+
+    text = (
+        "# Photosynthesis\n"
+        "Photosynthesis converts light energy into chemical energy stored in glucose.\n"
+        "The chloroplast is the organelle where photosynthesis takes place.\n"
+        "## Cell Structure\n"
+        "- The nucleus is the organelle that stores the genetic material of the cell.\n"
+        "- Ribosomes are small structures that build proteins from amino acids."
+    )
+    ext = Extraction(pages=[Page(1, text)], chunks=[], page_count=1, text_pages=1, char_count=len(text))
+    rows = recall._sentences(ext)
+    assert [h for _, _, h in rows] == ["Photosynthesis", "Photosynthesis", "Cell Structure", "Cell Structure"]
+    assert all(not s.startswith(("#", "-")) for s, _, _ in rows)
+    assert rows[2][0].startswith("The nucleus") and rows[3][0].startswith("Ribosomes")
+
+
+def test_delivery_detail_mentions_a_small_filler_count():
+    from reps_api.interview import _fluency
+
+    ok, detail = _fluency("Um, I built a matching engine in C++ and tested it against a reference version.", {"filler_total": 1, "fillers_per_min": None})
+    assert ok and "1 filler word" in detail and "No stalls or stutters" in detail
+    ok, detail = _fluency("I built a matching engine in C++ and tested it against a reference version.", {"filler_total": 0})
+    assert ok and detail.startswith("No stalls, stutters or filler words caught")
+
+
+def test_resume_review_skips_education_lines():
+    from reps_api.interview import review_claim
+
+    edu = review_claim("Rutgers University-New Brunswick, BS Computer Science and Data Science, May 2028")
+    assert edu["ready"] and not edu["fixes"]
+    weak = review_claim("Responsible for helping with the website")
+    assert not weak["ready"]

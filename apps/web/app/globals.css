@@ -12,14 +12,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light theme. Channels only, so Tailwind's /opacity modifiers keep working. */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --ink: 238 240 248; /* inset wells: fields, code, tracks */
+  --surface: 255 255 255; /* cards */
+  --raised: 243 244 251; /* chips, hover rows */
+  --line: 223 226 238;
+  --text: 20 22 43;
+  --muted: 93 98 131;
+  --violet: 109 74 255;
+  --violet-deep: 79 47 224;
+  --violet-soft: 91 63 224; /* used as text, so it stays dark enough on white */
+  --cyan: 8 145 165;
+  --cyan-deep: 11 110 123;
+  --hp: 229 56 90;
+  --heal: 15 140 92;
+  --xp: 183 110 0; /* text and icons */
+  --sun: 255 192 61; /* fills */
 }
 
 html,
 body {
-  background: #0e1020;
-  color: #eceeff;
+  background: #f5f6fb;
+  color: rgb(var(--text));
 }
 
 body {
@@ -27,26 +43,33 @@ body {
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  /* faint blueprint grid: the floor of the training hall */
   background-image:
-    linear-gradient(rgba(139, 108, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 108, 255, 0.035) 1px, transparent 1px);
-  background-size: 48px 48px;
+    radial-gradient(900px 500px at 8% -10%, rgba(109, 74, 255, 0.10), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgba(8, 145, 165, 0.08), transparent 60%),
+    radial-gradient(700px 500px at 50% 110%, rgba(255, 192, 61, 0.10), transparent 60%),
+    linear-gradient(rgba(109, 74, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(109, 74, 255, 0.045) 1px, transparent 1px);
+  background-size: auto, auto, auto, 40px 40px, 40px 40px;
+  background-attachment: fixed;
 }
 
 ::selection {
-  background: rgba(139, 108, 255, 0.45);
+  background: rgba(109, 74, 255, 0.25);
 }
 
 :focus-visible {
-  outline: 2px solid #3fd8e6;
+  outline: 2px solid rgb(var(--violet));
   outline-offset: 2px;
   border-radius: 6px;
 }
 
 @layer components {
   .panel {
-    @apply rounded-panel border border-line bg-surface;
+    @apply rounded-panel border border-line bg-surface shadow-card;
+  }
+  /* Cards you can click: lift on hover, press on click */
+  .lift {
+    @apply transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-violet/40 hover:shadow-lift active:translate-y-0 active:scale-[0.995];
   }
   .btn {
     @apply inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-chip px-4 py-2 font-display text-[15px] font-semibold tracking-wide transition-[transform,background,box-shadow] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
@@ -54,26 +77,33 @@ body {
   .btn:not(:disabled):active {
     transform: translateY(1px) scale(0.98);
   }
+  .btn:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
   .btn-primary {
-    @apply btn bg-violet text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset,0_6px_20px_-6px_rgba(139,108,255,0.7)] hover:bg-[#9b80ff];
+    @apply btn bg-gradient-to-b from-[#7D5CFF] to-violet text-white shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_8px_20px_-8px_rgba(109,74,255,0.8)] hover:shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_12px_26px_-8px_rgba(109,74,255,0.9)];
   }
   .btn-cyan {
-    @apply btn bg-cyan text-ink hover:bg-[#62e3ee];
+    @apply btn bg-gradient-to-b from-[#12AFC4] to-cyan text-white shadow-[0_8px_20px_-8px_rgba(8,145,165,0.8)] hover:shadow-[0_12px_26px_-8px_rgba(8,145,165,0.9)];
+  }
+  .btn-sun {
+    @apply btn bg-gradient-to-b from-[#FFCB5C] to-sun text-night shadow-[0_8px_20px_-8px_rgba(230,150,0,0.8)] hover:shadow-[0_12px_26px_-8px_rgba(230,150,0,0.9)];
   }
   .btn-ghost {
-    @apply btn border border-line bg-raised/60 text-text hover:border-violet/60 hover:bg-raised;
+    @apply btn border border-line bg-surface text-text shadow-card hover:border-violet/50 hover:text-violet-deep;
   }
   .kbd {
-    @apply ml-1 rounded border border-white/20 px-1.5 py-px font-mono text-[11px] font-normal opacity-80;
+    @apply ml-1 rounded border px-1.5 py-px font-mono text-[11px] font-normal opacity-70;
+    border-color: color-mix(in srgb, currentColor 30%, transparent);
   }
   .field {
-    @apply w-full rounded-chip border border-line bg-ink/70 px-3 py-2.5 text-text placeholder:text-muted/70 focus:border-violet focus:outline-none focus:ring-2 focus:ring-violet/30;
+    @apply w-full rounded-chip border border-line bg-surface px-3 py-2.5 text-text shadow-[inset_0_1px_2px_rgba(20,22,43,0.05)] transition placeholder:text-muted/70 hover:border-violet/40 focus:border-violet focus:outline-none focus:ring-4 focus:ring-violet/15;
   }
   .label {
     @apply mb-1.5 block text-sm font-medium text-muted;
   }
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-raised px-2.5 py-0.5 text-xs text-muted;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs text-muted;
   }
   .h-display {
     @apply font-display font-semibold tracking-tight;
@@ -104,4 +134,19 @@ body {
 }
 .cm-editor .cm-scroller {
   font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Page change: content slides up softly */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page-in {
+  animation: page-in 260ms ease-out both;
 }

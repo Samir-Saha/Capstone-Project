@@ -21,9 +21,9 @@ const NAV = [
 function Wordmark() {
   return (
     <Link href="/" className="group flex items-center gap-2.5 px-2" aria-label="Reps hub">
-      <svg viewBox="0 0 32 32" className="h-8 w-8" aria-hidden>
-        <rect x="2" y="2" width="28" height="28" rx="8" fill="#8B6CFF" />
-        <path d="M9 23 V9 h7 a5 5 0 0 1 0 10 h-7 M16 19 l6 4" stroke="#0E1020" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <svg viewBox="0 0 32 32" className="h-8 w-8 transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110" aria-hidden>
+        <rect x="2" y="2" width="28" height="28" rx="8" fill="#6D4AFF" />
+        <path d="M9 23 V9 h7 a5 5 0 0 1 0 10 h-7 M16 19 l6 4" stroke="#FFFFFF" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <span className="font-display text-xl font-bold tracking-tight">Reps</span>
     </Link>
@@ -89,7 +89,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 btn-primary">
         Skip to content
       </a>
-      <aside className="sticky top-0 hidden h-screen w-[212px] shrink-0 flex-col border-r border-line bg-surface/70 py-5 backdrop-blur md:flex">
+      <aside className="sticky top-0 hidden h-screen w-[212px] shrink-0 flex-col border-r border-line bg-surface/80 py-5 backdrop-blur-md md:flex">
         <Wordmark />
         <nav className="mt-8 flex flex-col gap-1 px-3" aria-label="Main">
           {NAV.map(({ href, label, icon: Icon, match }) => {
@@ -99,8 +99,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-chip px-3 py-2.5 font-display text-[15px] font-semibold transition-colors ${
-                  active ? "bg-violet/15 text-text shadow-[inset_3px_0_0_#8B6CFF]" : "text-muted hover:bg-raised hover:text-text"
+                className={`flex items-center gap-3 rounded-chip px-3 py-2.5 font-display text-[15px] font-semibold transition-all ${
+                  active ? "bg-violet/10 text-violet-deep shadow-[inset_3px_0_0_rgb(109,74,255)]" : "text-muted hover:translate-x-0.5 hover:bg-raised hover:text-text"
                 }`}
               >
                 <Icon size={18} aria-hidden />
@@ -115,17 +115,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-line bg-ink/85 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-line bg-surface/80 px-4 backdrop-blur-md md:px-8">
           <div className="md:hidden">
             <Wordmark />
           </div>
-          <div className="ml-auto flex items-center gap-5">
+          <div className="ml-auto flex items-center gap-2 sm:gap-5">
             {player && (
               <>
                 <div className="flex items-center gap-1.5" title={`Best streak: ${player.best_streak} days`}>
                   <Flame size={18} className={player.streak > 0 ? "fill-xp/30 text-xp" : "text-muted"} aria-hidden />
-                  <span className="font-display text-sm font-semibold tabular-nums">
-                    {player.streak} <span className="font-normal text-muted">day streak</span>
+                  <span className="whitespace-nowrap font-display text-sm font-semibold tabular-nums">
+                    {player.streak} <span className="hidden font-normal text-muted sm:inline">day streak</span>
                   </span>
                 </div>
                 <div className="relative flex items-center gap-3" title={`${player.xp} XP total`}>
@@ -140,7 +140,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       </span>
                     </div>
                     <div key={gain?.id ?? 0} className={`mt-1 h-1.5 overflow-hidden rounded-full bg-raised ${gain ? "animate-glow" : ""}`}>
-                      <div className="h-full rounded-full bg-xp transition-[width] duration-700" style={{ width: `${pct}%` }} />
+                      <div className="h-full rounded-full bg-gradient-to-r from-sun to-[#FF9F1C] transition-[width] duration-700" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                   {gain && (
@@ -189,7 +189,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
         )}
 
         <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-24 pt-8 md:px-8">
-          {children}
+          <div key={pathname} className="page-in">
+            {children}
+          </div>
         </main>
 
         <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface/95 backdrop-blur md:hidden" aria-label="Main">
@@ -209,7 +211,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       <div className="pointer-events-none fixed bottom-20 right-4 z-50 flex w-[320px] flex-col gap-3 md:bottom-6" role="status" aria-live="polite">
         {toasts.slice(0, MAX_TOASTS).map((a) => (
-          <div key={a.key} className="pointer-events-auto flex animate-pop items-start gap-3 rounded-panel border border-xp/50 bg-surface/95 p-4 shadow-[0_10px_40px_-10px_rgba(255,200,87,0.5)]">
+          <div key={a.key} className="pointer-events-auto flex animate-pop items-start gap-3 rounded-panel border border-xp/50 bg-surface/95 p-4 shadow-[0_10px_40px_-10px_rgba(224,154,0,0.45)]">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-xp/20 text-xp ring-1 ring-xp/40">
               <AchievementIcon name={a.icon} />
             </span>
@@ -223,7 +225,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {toasts.length > MAX_TOASTS && (
           <Link
             href="/progress"
-            className="pointer-events-auto animate-pop rounded-panel border border-xp/50 bg-surface/95 px-4 py-3 text-sm shadow-[0_10px_40px_-10px_rgba(255,200,87,0.5)] hover:bg-raised"
+            className="pointer-events-auto animate-pop rounded-panel border border-xp/50 bg-surface/95 px-4 py-3 text-sm shadow-[0_10px_40px_-10px_rgba(224,154,0,0.45)] hover:bg-raised"
           >
             <span className="font-display font-semibold text-xp">+{toasts.length - MAX_TOASTS} more achievements.</span>{" "}
             <span className="text-muted">See them on Progress.</span>
@@ -233,7 +235,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {levelUp !== null && (
         <div className="pointer-events-none fixed inset-x-0 top-20 z-50 flex justify-center" role="status">
-          <div className="flex animate-pop items-center gap-4 rounded-panel border border-xp/60 bg-surface/95 px-6 py-3 shadow-[0_0_60px_-10px_rgba(255,200,87,0.6)]">
+          <div className="flex animate-pop items-center gap-4 rounded-panel border border-xp/60 bg-surface/95 px-6 py-3 shadow-[0_0_60px_-10px_rgba(224,154,0,0.5)]">
             <div className="font-display text-sm font-semibold text-xp">Level up</div>
             <div className="font-display text-4xl font-bold">{levelUp}</div>
           </div>

@@ -5,17 +5,23 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#0E1020",
-        surface: "#161A2F",
-        raised: "#1F2440",
-        line: "#2C3256",
-        text: "#ECEEFF",
-        muted: "#9095BC",
-        violet: { DEFAULT: "#8B6CFF", deep: "#5B3FE0", soft: "#B9A8FF" },
-        cyan: { DEFAULT: "#3FD8E6", deep: "#1A9FB0" },
-        hp: "#FF5C7A",
-        heal: "#5BE3A1",
-        xp: "#FFC857",
+        ink: "rgb(var(--ink) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        raised: "rgb(var(--raised) / <alpha-value>)",
+        line: "rgb(var(--line) / <alpha-value>)",
+        text: "rgb(var(--text) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        night: "#14162B", // dark text on bright buttons, same in every theme
+        violet: { DEFAULT: "rgb(var(--violet) / <alpha-value>)", deep: "rgb(var(--violet-deep) / <alpha-value>)", soft: "rgb(var(--violet-soft) / <alpha-value>)" },
+        cyan: { DEFAULT: "rgb(var(--cyan) / <alpha-value>)", deep: "rgb(var(--cyan-deep) / <alpha-value>)" },
+        hp: "rgb(var(--hp) / <alpha-value>)",
+        heal: "rgb(var(--heal) / <alpha-value>)",
+        xp: "rgb(var(--xp) / <alpha-value>)",
+        sun: "rgb(var(--sun) / <alpha-value>)", // bright amber fill for buttons and bars
+      },
+      boxShadow: {
+        card: "0 1px 2px rgb(20 22 43 / 0.06), 0 4px 16px -6px rgb(20 22 43 / 0.10)",
+        lift: "0 2px 4px rgb(20 22 43 / 0.06), 0 14px 32px -10px rgb(91 63 224 / 0.28)",
       },
       fontFamily: {
         display: ['"Chakra Petch"', "system-ui", "sans-serif"],

@@ -51,7 +51,7 @@ export function SegmentedHp({
             >
               {/* damage trail: lags behind the real bar so you can see where the hit landed */}
               <div
-                className="absolute inset-y-0 left-0 bg-[#FFE3A3] transition-[width] delay-[450ms] duration-[650ms] ease-in"
+                className="absolute inset-y-0 left-0 bg-[#FFD27A] transition-[width] delay-[450ms] duration-[650ms] ease-in"
                 style={{ width: `${fill * 100}%` }}
               />
               <div
@@ -128,7 +128,7 @@ export function DifficultyPips({ level, max = 3 }: { level: number; max?: number
   return (
     <span className="inline-flex items-center gap-0.5" aria-label={`Difficulty ${level} of ${max}`}>
       {Array.from({ length: max }, (_, i) => (
-        <span key={i} className={`h-2.5 w-1.5 rounded-sm ${i < level ? "bg-xp" : "bg-line"}`} />
+        <span key={i} className={`h-2.5 w-1.5 rounded-sm ${i < level ? "bg-sun" : "bg-line"}`} />
       ))}
     </span>
   );

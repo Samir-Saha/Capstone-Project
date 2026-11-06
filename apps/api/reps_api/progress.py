@@ -8,6 +8,9 @@ from typing import Any
 from . import achievements, exam
 from .store import Store, local_day
 
+# Same bar the boss fight uses: a topic at 75% mastery counts toward victory.
+READY_MASTERY = 0.75
+
 
 def summary(store: Store) -> dict[str, Any]:
     achievements.check(store)
@@ -59,6 +62,35 @@ def summary(store: Store) -> dict[str, Any]:
         "join topics t on t.id = q.topic_id join courses c on c.id = t.course_id group by c.id order by answered desc"
     )
 
+    # Readiness per course: forgetting-adjusted mastery, with the topics that still need work.
+    readiness = []
+    for c in courses:
+        ids = exam.course_topic_ids(store, c["id"])
+        if not ids:
+            continue
+        topics = exam.topic_view(store, ids)
+        avg = sum(t["mastery"] for t in topics) / len(topics)
+        weakest = sorted(topics, key=lambda t: t["mastery"])[:3]
+        readiness.append(
+            {
+                "course_id": c["id"],
+                "course": c["name"],
+                "readiness": round(avg, 3),
+                "ready_topics": sum(1 for t in topics if t["mastery"] >= READY_MASTERY),
+                "total_topics": len(topics),
+                "fading_topics": sum(1 for t in topics if t["fading"] >= 0.05),
+                "weakest": [
+                    {
+                        "name": t["name"],
+                        "mastery": t["mastery"],
+                        "attempts": t["attempts"],
+                        "accuracy": round(t["correct"] / t["attempts"], 3) if t["attempts"] else None,
+                    }
+                    for t in weakest
+                ],
+            }
+        )
+
     verification = {}
     for row in store.all("select subject, status, count(*) n from verification_log group by subject, status"):
         verification.setdefault(row["subject"], {})[row["status"]] = row["n"]
@@ -79,6 +111,7 @@ def summary(store: Store) -> dict[str, Any]:
         },
         "mastery_history": history,
         "xp_by_day": xp_by_day,
+        "readiness": readiness,
         "accuracy_by_course": [{**r, "correct": int(r["correct"] or 0)} for r in accuracy],
         "verification": verification,
         "rejection_reasons": reasons,

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "Train for the exam, master the patterns, win the interview.",
 };
 
-export const viewport: Viewport = { themeColor: "#0E1020", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#F5F6FB", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

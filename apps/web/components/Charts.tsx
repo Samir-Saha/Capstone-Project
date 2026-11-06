@@ -2,13 +2,13 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-// Categorical slots, validated against the app surface (#161A2F) for lightness,
+// Categorical slots, validated against the light app surface (#FFFFFF) for lightness,
 // chroma, colorblind separation and 3:1 contrast. Assigned by topic order, never cycled.
-export const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9"];
+export const SERIES = ["#3987e5", "#d95926", "#199e70", "#b07400", "#d55181", "#9085e9"];
 
-const GRID = "#2C3256";
-const MUTED = "#9095BC";
-const SURFACE = "#161A2F";
+const GRID = "#E3E6F0";
+const MUTED = "#5D6283";
+const SURFACE = "#FFFFFF";
 
 /** Width of a container in CSS pixels, so the SVG draws at 1:1 and text stays 11px. */
 function useWidth<T extends HTMLElement>(fallback: number) {
@@ -128,7 +128,7 @@ export function MasteryChart({ topics, events }: { topics: Topic[]; events: Even
         </svg>
         {hover !== null && hovered && (
           <div
-            className="pointer-events-none absolute top-2 z-10 w-[220px] rounded-chip border border-line bg-ink/95 p-3 text-xs shadow-lg"
+            className="pointer-events-none absolute top-2 z-10 w-[220px] rounded-chip border border-line bg-surface/95 shadow-lift p-3 text-xs shadow-lg"
             style={x(hover) > W / 2 ? { right: W - x(hover) + 12 } : { left: x(hover) + 12 }}
           >
             <div className="font-semibold">Answer {hover}</div>
@@ -160,7 +160,7 @@ export function MasteryChart({ topics, events }: { topics: Topic[]; events: Even
 }
 
 /** One measure across days, with a hover tooltip per bar. */
-export function DailyBars({ data, color = "#FFC857", unit = "XP" }: { data: { day: string; xp: number }[]; color?: string; unit?: string }) {
+export function DailyBars({ data, color = "#F5A623", unit = "XP" }: { data: { day: string; xp: number }[]; color?: string; unit?: string }) {
   const [box, W] = useWidth<HTMLDivElement>(560);
   const H = 180;
   const pad = { l: 36, r: 4, t: 10, b: 24 };
@@ -207,7 +207,7 @@ export function DailyBars({ data, color = "#FFC857", unit = "XP" }: { data: { da
       </svg>
       {hover !== null && (
         <div
-          className="pointer-events-none absolute top-0 rounded-chip border border-line bg-ink/95 px-3 py-2 text-xs"
+          className="pointer-events-none absolute top-0 rounded-chip border border-line bg-surface/95 shadow-lift px-3 py-2 text-xs"
           style={hover > data.length / 2 ? { right: W - (pad.l + step * hover) + 4 } : { left: pad.l + step * (hover + 1) + 4 }}
         >
           <div className="font-semibold">{label(data[hover]!.day)}</div>

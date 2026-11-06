@@ -105,7 +105,7 @@ export default function PartyHome() {
                     role="radio"
                     aria-checked={on}
                     onClick={() => setCourseId(c.id)}
-                    className={`flex items-center gap-3 rounded-panel border p-3 text-left transition ${on ? "border-violet bg-violet/10" : "border-line hover:border-violet/50"}`}
+                    className={`flex items-center gap-3 rounded-panel border p-3 text-left transition hover:-translate-y-0.5 ${on ? "border-violet bg-violet/10 shadow-lift ring-2 ring-violet/30" : "border-line bg-surface shadow-card hover:border-violet/50 hover:shadow-lift"}`}
                   >
                     <BossArt courseId={c.id} name={c.boss_name} className="h-16 w-16 shrink-0" />
                     <span className="min-w-0">

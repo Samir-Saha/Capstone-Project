@@ -158,7 +158,7 @@ export default function Report() {
           <h1 className="h-display text-4xl">Interview report</h1>
         </div>
         <div className="flex gap-3">
-          <Link href="/interview" className="btn bg-xp text-ink hover:bg-[#ffd47a]">
+          <Link href="/interview" className="btn btn-sun">
             Run it again
           </Link>
           <Link href="/" className="btn-ghost">

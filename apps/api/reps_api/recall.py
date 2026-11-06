@@ -72,28 +72,56 @@ def is_recall(body: str) -> bool:
 HEADING_RE = re.compile(r"^[A-Z0-9][^.!?]{2,60}$")
 
 
+MARKUP_RE = re.compile(r"^(?:#{1,6}\s+|>\s*|(?:[-*+•▪●◦]|\d{1,2}[.)])\s+)")
+BULLET_RE = re.compile(r"^(?:[-*+•▪●◦]|\d{1,2}[.)])\s+")
+
+
+def _clean_line(line: str) -> tuple[str, bool, bool]:
+    """(text, was a markdown heading, was a list item) with markdown stripped."""
+    raw = line.strip().replace("\u00ad", "")
+    md_heading = bool(re.match(r"^#{1,6}\s+", raw))
+    bullet = bool(BULLET_RE.match(raw))
+    text = MARKUP_RE.sub("", raw)
+    text = re.sub(r"(\*\*|__|`)", "", text).strip()
+    return text, md_heading, bullet
+
+
 def _sentences(extraction: Extraction) -> list[tuple[str, int, str | None]]:
-    """(sentence, page, heading it sits under). Short lines with no full stop are headings."""
+    """(sentence, page, heading it sits under). Short lines with no full stop are headings,
+    and so is any markdown "# Heading" line. List items count as their own paragraphs."""
     out: list[tuple[str, int, str | None]] = []
     heading: str | None = None
+
+    def flush(para: list[str], page_no: int) -> None:
+        text = re.sub(r"\s+", " ", " ".join(para)).strip()
+        for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])|\s*[•▪●◦]\s*", text):
+            sent = sent.strip(" -–•\"'")
+            words = sent.split()
+            numbers = len(re.findall(r"\d+(?:[.,]\d+)?", sent))
+            if 7 <= len(words) <= 45 and numbers <= 1 and not re.match(r"^\d+[.)]\s", sent) and sum(c.isalpha() for c in sent) / max(1, len(sent)) > 0.6:
+                out.append((sent, page_no, heading))
+
     for page in extraction.pages:
         para: list[str] = []
-        lines = [ln.strip() for ln in page.text.replace("\u00ad", "").splitlines()]
-        for line in [*lines, ""]:
-            if line and HEADING_RE.match(line) and len(line.split()) <= 8 and not para:
+        for raw in [*page.text.splitlines(), ""]:
+            line, md_heading, bullet = _clean_line(raw)
+            ends_sentence = not para or re.search(r"[.!?:;]$", para[-1]) is not None
+            is_heading = bool(line) and len(line.split()) <= 8 and (
+                md_heading or (HEADING_RE.match(line) is not None and ends_sentence and not bullet)
+            )
+            if is_heading:
+                flush(para, page.number)
+                para = []
                 heading = line.rstrip(":").strip()
                 continue
+            if line and bullet and para:
+                flush(para, page.number)
+                para = []
             if line:
                 para.append(line)
                 continue
-            text = re.sub(r"\s+", " ", " ".join(para)).strip()
+            flush(para, page.number)
             para = []
-            for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"(])|\s*[•▪●◦]\s*", text):
-                sent = sent.strip(" -–•\"'")
-                words = sent.split()
-                numbers = len(re.findall(r"\d+(?:[.,]\d+)?", sent))
-                if 7 <= len(words) <= 45 and numbers <= 1 and not re.match(r"^\d+[.)]\s", sent) and sum(c.isalpha() for c in sent) / max(1, len(sent)) > 0.6:
-                    out.append((sent, page.number, heading))
     seen: set[str] = set()
     return [x for x in out if not (x[0].lower() in seen or seen.add(x[0].lower()))]
 

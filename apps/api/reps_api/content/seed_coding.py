@@ -408,4 +408,210 @@ def generate_large():
 """,
 )
 
-SEED_PROBLEMS = [PAIR_UP, FIRST_PASSING, BALANCED_NOTES, LONGEST_BUDGET_WINDOW, LONGEST_FRESH_RUN, BEST_STUDY_STRETCH, ISLAND_GROUPS, FEWEST_PROBLEM_SETS]
+MERGE_STUDY_BLOCKS = CodingProblemSpec(
+    title="Merge Study Blocks",
+    pattern="intervals",
+    difficulty="medium",
+    statement=(
+        "blocks is a list of [start, end] study sessions in minutes, in any order. Sessions that overlap or touch "
+        "(one ends exactly when the next starts) count as one block. Return the merged blocks sorted by start time."
+    ),
+    signature="def solve(blocks: list[list[int]]) -> list[list[int]]",
+    reference_solution="""
+def solve(blocks):
+    merged = []
+    for start, end in sorted(blocks):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+""",
+    brute_force_solution="""
+def solve(blocks):
+    minutes = set()
+    edges = set()
+    for start, end in blocks:
+        edges.add((start, end))
+        for m in range(start, end):
+            minutes.add(m)
+    points = sorted(minutes)
+    result = []
+    for m in points:
+        if result and m <= result[-1][1]:
+            result[-1][1] = max(result[-1][1], m + 1)
+        else:
+            result.append([m, m + 1])
+    # zero-length blocks still appear on their own unless they touch another block
+    for start, end in sorted(edges):
+        if start == end and not any(a <= start <= b for a, b in result):
+            result.append([start, end])
+    return sorted(result)
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 9)
+    blocks = []
+    for _ in range(n):
+        a = rng.randint(0, 40)
+        blocks.append([a, a + rng.randint(1, 12)])
+    return [blocks]
+""",
+    edge_cases=[[[]], [[[1, 3]]], [[[1, 3], [3, 5]]], [[[5, 8], [1, 2]]], [[[1, 10], [2, 3], [4, 5]]]],
+    public_examples=[[[[1, 3], [2, 6], [8, 10], [15, 18]]], [[[1, 4], [4, 5]]]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(9)
+    blocks = []
+    for _ in range(200_000):
+        a = rng.randint(0, 10_000_000)
+        blocks.append([a, a + rng.randint(1, 60)])
+    return [blocks]
+""",
+)
+
+STREAK_SUMS = CodingProblemSpec(
+    title="Streaks That Hit the Goal",
+    pattern="prefix sums",
+    difficulty="medium",
+    statement=(
+        "points[i] is the XP you earned on day i (it can be negative after a penalty). Count how many runs of one or more "
+        "consecutive days add up to exactly goal. Aim for O(n)."
+    ),
+    signature="def solve(points: list[int], goal: int) -> int",
+    reference_solution="""
+def solve(points, goal):
+    seen = {0: 1}
+    total = count = 0
+    for p in points:
+        total += p
+        count += seen.get(total - goal, 0)
+        seen[total] = seen.get(total, 0) + 1
+    return count
+""",
+    brute_force_solution="""
+def solve(points, goal):
+    count = 0
+    for i in range(len(points)):
+        total = 0
+        for j in range(i, len(points)):
+            total += points[j]
+            if total == goal:
+                count += 1
+    return count
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 25)
+    return [[rng.randint(-5, 8) for _ in range(n)], rng.randint(-5, 15)]
+""",
+    edge_cases=[[[], 0], [[0, 0, 0], 0], [[5], 5], [[1, -1, 1, -1], 0], [[3, 4, 7], 7]],
+    public_examples=[[[1, 1, 1], 2], [[1, 2, 3], 3]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(11)
+    return [[rng.randint(-20, 30) for _ in range(300_000)], 50]
+""",
+)
+
+WEAKEST_TOPICS = CodingProblemSpec(
+    title="Weakest Topics First",
+    pattern="heap",
+    difficulty="easy",
+    statement=(
+        "mastery[i] is your mastery score for topic i. Return the indices of the k weakest topics, weakest first. "
+        "When two topics tie, the lower index comes first. If k is larger than the number of topics, return them all."
+    ),
+    signature="def solve(mastery: list[int], k: int) -> list[int]",
+    reference_solution="""
+def solve(mastery, k):
+    import heapq
+    return [i for _, i in heapq.nsmallest(k, ((m, i) for i, m in enumerate(mastery)))]
+""",
+    brute_force_solution="""
+def solve(mastery, k):
+    order = sorted(range(len(mastery)), key=lambda i: (mastery[i], i))
+    return order[:k]
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(0, 20)
+    return [[rng.randint(0, 10) for _ in range(n)], rng.randint(0, 25)]
+""",
+    edge_cases=[[[], 3], [[7], 0], [[4, 4, 4], 2], [[9, 1, 5], 5]],
+    public_examples=[[[80, 35, 60, 35, 90], 2], [[50, 20, 70], 1]],
+    scale_generator="""
+def generate_large():
+    import random
+    rng = random.Random(13)
+    return [[rng.randint(0, 100) for _ in range(500_000)], 10]
+""",
+)
+
+PREREQ_PLAN = CodingProblemSpec(
+    title="Can You Finish the Plan",
+    pattern="topological sort",
+    difficulty="medium",
+    statement=(
+        "There are n topics, numbered 0 to n-1. Each pair [a, b] in prereqs means you must study b before a. "
+        "Return True if there is an order that covers every topic, or False if the prerequisites form a loop."
+    ),
+    signature="def solve(n: int, prereqs: list[list[int]]) -> bool",
+    reference_solution="""
+def solve(n, prereqs):
+    from collections import deque
+    indeg = [0] * n
+    after = [[] for _ in range(n)]
+    for a, b in prereqs:
+        after[b].append(a)
+        indeg[a] += 1
+    queue = deque(i for i in range(n) if indeg[i] == 0)
+    done = 0
+    while queue:
+        node = queue.popleft()
+        done += 1
+        for nxt in after[node]:
+            indeg[nxt] -= 1
+            if indeg[nxt] == 0:
+                queue.append(nxt)
+    return done == n
+""",
+    brute_force_solution="""
+def solve(n, prereqs):
+    need = {i: set() for i in range(n)}
+    for a, b in prereqs:
+        need[a].add(b)
+    finished = set()
+    progress = True
+    while progress:
+        progress = False
+        for i in range(n):
+            if i not in finished and need[i] <= finished:
+                finished.add(i)
+                progress = True
+    return len(finished) == n
+""",
+    generator="""
+def generate(rng):
+    n = rng.randint(1, 8)
+    pairs = []
+    for _ in range(rng.randint(0, 10)):
+        a, b = rng.randrange(n), rng.randrange(n)
+        if rng.random() < 0.8 and a == b:
+            continue
+        pairs.append([a, b])
+    return [n, pairs]
+""",
+    edge_cases=[[1, []], [2, [[1, 0]]], [2, [[1, 0], [0, 1]]], [3, [[0, 0]]], [4, [[1, 0], [2, 1], [3, 2]]]],
+    public_examples=[[2, [[1, 0]]], [2, [[1, 0], [0, 1]]]],
+    scale_generator="""
+def generate_large():
+    n = 200_000
+    return [n, [[i, i - 1] for i in range(1, n)]]
+""",
+)
+
+SEED_PROBLEMS = [PAIR_UP, FIRST_PASSING, BALANCED_NOTES, LONGEST_BUDGET_WINDOW, LONGEST_FRESH_RUN, BEST_STUDY_STRETCH, ISLAND_GROUPS, FEWEST_PROBLEM_SETS,
+                 WEAKEST_TOPICS, MERGE_STUDY_BLOCKS, STREAK_SUMS, PREREQ_PLAN]

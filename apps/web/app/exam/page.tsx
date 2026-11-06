@@ -24,8 +24,8 @@ function BossCard({ course }: { course: Course }) {
     }
   };
   return (
-    <article className="panel grid gap-6 p-6 md:grid-cols-[180px_1fr]">
-      <BossArt courseId={course.id} name={course.boss_name} className="mx-auto h-44 w-44" track />
+    <article className="panel group grid gap-6 p-6 transition-shadow duration-200 hover:shadow-lift md:grid-cols-[180px_1fr]">
+      <BossArt courseId={course.id} name={course.boss_name} className="mx-auto h-44 w-44 transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-105" track />
       <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -97,16 +97,27 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
   const [drag, setDrag] = useState(false);
   const [notes, setNotes] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const misses = useRef(0);
+  const building = !!job && job.status !== "succeeded" && job.status !== "failed";
 
   useEffect(() => {
     if (!job || job.status === "succeeded" || job.status === "failed") return;
     const t = setTimeout(async () => {
       try {
         const next = await api.job(job.id);
+        misses.current = 0;
         setJob(next);
-        if (next.status === "succeeded") onCourse();
+        if (next.status === "succeeded") {
+          onCourse();
+          setFiles([]);
+          setNotes("");
+          setName("");
+        }
       } catch (e) {
-        setError((e as Error).message);
+        // A dropped request shouldn't strand the job: keep polling, give up after ~30 s of failures.
+        misses.current += 1;
+        if (misses.current >= 20) setError((e as Error).message);
+        else setJob({ ...job });
       }
     }, 1500);
     return () => clearTimeout(t);
@@ -224,8 +235,8 @@ function UploadPanel({ onCourse }: { onCourse: () => void }) {
             </label>
             <input id="course-name" className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Calc 2, midterm 1" required />
           </div>
-          <button type="submit" className="btn-primary mt-auto" disabled={(!files.length && !notes.trim()) || !name.trim() || busy}>
-            {busy ? "Reading your notes" : "Build the boss"}
+          <button type="submit" className="btn-primary mt-auto" disabled={(!files.length && !notes.trim()) || !name.trim() || busy || building}>
+            {busy ? "Reading your notes" : building ? "Building" : "Build the boss"}
           </button>
         </div>
       </form>

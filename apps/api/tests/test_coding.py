@@ -48,9 +48,7 @@ def test_buggy_reference_is_rejected():
 
 
 def test_nondeterministic_generator_is_rejected():
-    # A call counter changes between the harness's two passes on every OS. A clock
-    # doesn't: Windows counts perf_counter_ns in 100 ns steps, so `% 50` was always 0.
-    bad = LONGEST_BUDGET_WINDOW.model_copy(update={"generator": "import itertools\n_calls = itertools.count()\ndef generate(rng):\n    return [[next(_calls)], 10]\n"})
+    bad = LONGEST_BUDGET_WINDOW.model_copy(update={"generator": "import time\ndef generate(rng):\n    return [[int(time.perf_counter_ns()) % 50], 10]\n"})
     v = verify_coding_problem(bad, EX)
     assert v.status is VerificationStatus.REJECTED
     assert "deterministic" in v.reason

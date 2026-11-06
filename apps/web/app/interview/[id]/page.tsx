@@ -56,12 +56,12 @@ function AnswerClock({ seconds }: { seconds: number }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   const p = Math.min(1, seconds / 120);
-  const tone = seconds < 45 ? "#9095BC" : seconds <= 150 ? "#FFC857" : "#FF5C7A";
+  const tone = seconds < 45 ? "#5D6283" : seconds <= 150 ? "#E09A00" : "#E5385A";
   const note = seconds < 45 ? "Keep going" : seconds <= 150 ? "Good length" : "Wrap it up";
   return (
     <div className="flex items-center gap-3">
       <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90" aria-hidden>
-        <circle cx="32" cy="32" r={r} fill="none" stroke="#2C3256" strokeWidth="5" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#DFE2EE" strokeWidth="5" />
         <circle
           cx="32"
           cy="32"
@@ -90,7 +90,7 @@ function LevelMeter({ level }: { level: number }) {
     <div className="flex h-10 items-end gap-1" aria-hidden>
       {Array.from({ length: 24 }, (_, i) => {
         const on = level * 24 > i;
-        return <span key={i} className={`w-1.5 rounded-sm transition-all duration-75 ${on ? "bg-xp" : "bg-line"}`} style={{ height: `${20 + ((i * 37) % 80)}%` }} />;
+        return <span key={i} className={`w-1.5 rounded-sm transition-all duration-75 ${on ? "bg-sun" : "bg-line"}`} style={{ height: `${20 + ((i * 37) % 80)}%` }} />;
       })}
     </div>
   );
@@ -251,12 +251,12 @@ export default function Room() {
         <div className="mt-6">
           <Interviewer speaking={speaking} listening={recorder.recording} thinking={submitting} />
           <p className="mt-3 text-center text-xs text-muted" aria-live="polite">
-            {speaking ? "Asking" : recorder.recording ? "Listening" : submitting ? "Taking notes" : "Waiting for your answer"}
+            {speaking ? "Asking" : recorder.recording ? "Listening" : submitting ? "Taking notes" : q ? "Waiting for your answer" : "All done. Finish for your report"}
           </p>
         </div>
         <div className="mt-6 flex items-center gap-1.5" aria-label={`${state.answered} of ${state.total} answered`}>
           {Array.from({ length: state.total }, (_, i) => (
-            <span key={i} className={`h-1.5 flex-1 rounded-full ${i < state.answered ? "bg-xp" : i === state.answered ? "bg-xp/40" : "bg-line"}`} />
+            <span key={i} className={`h-1.5 flex-1 rounded-full ${i < state.answered ? "bg-sun" : i === state.answered ? "bg-sun/40" : "bg-line"}`} />
           ))}
         </div>
         {q ? (
@@ -306,7 +306,7 @@ export default function Room() {
 
         {!q ? (
           <div className="m-auto text-center">
-            <button type="button" className="btn bg-xp px-8 py-3 text-lg text-ink hover:bg-[#ffd47a]" onClick={finish} disabled={submitting}>
+            <button type="button" className="btn-sun px-8 py-3 text-lg " onClick={finish} disabled={submitting}>
               {submitting ? "Scoring" : "Finish and see the report"}
             </button>
           </div>
@@ -357,11 +357,11 @@ export default function Room() {
               <div className="mt-5 flex flex-1 flex-col">
                 <div className="flex items-center gap-5">
                   {recorder.recording ? (
-                    <button type="button" onClick={stopRecording} className="btn bg-hp px-6 py-3 text-white hover:bg-[#ff7590]">
+                    <button type="button" onClick={stopRecording} className="btn bg-hp px-6 py-3 text-white hover:brightness-110">
                       <Square size={16} className="fill-white" aria-hidden /> Stop
                     </button>
                   ) : (
-                    <button type="button" onClick={startRecording} className="btn bg-xp px-6 py-3 text-ink hover:bg-[#ffd47a]">
+                    <button type="button" onClick={startRecording} className="btn-sun px-6 py-3 ">
                       <Mic size={18} aria-hidden /> {captured ? "Record again" : "Start answering"}
                     </button>
                   )}
@@ -426,7 +426,7 @@ export default function Room() {
               </button>
               <button
                 type="button"
-                className="btn bg-xp px-6 text-ink hover:bg-[#ffd47a]"
+                className="btn-sun px-6 "
                 onClick={submit}
                 disabled={submitting || recorder.recording || (!text.trim() && !(q.kind === "technical" && code.trim()))}
               >
