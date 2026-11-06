@@ -20,8 +20,8 @@ export default {
         sun: "rgb(var(--sun) / <alpha-value>)", // bright amber fill for buttons and bars
       },
       boxShadow: {
-        card: "0 1px 2px rgb(20 22 43 / 0.06), 0 4px 16px -6px rgb(20 22 43 / 0.10)",
-        lift: "0 2px 4px rgb(20 22 43 / 0.06), 0 14px 32px -10px rgb(91 63 224 / 0.28)",
+        card: "0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px -8px rgb(0 0 0 / 0.5)",
+        lift: "0 2px 4px rgb(0 0 0 / 0.3), 0 14px 32px -10px rgb(139 92 246 / 0.35)",
       },
       fontFamily: {
         display: ['"Chakra Petch"', "system-ui", "sans-serif"],

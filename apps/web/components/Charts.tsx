@@ -2,13 +2,13 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-// Categorical slots, validated against the light app surface (#FFFFFF) for lightness,
+// Categorical slots, validated against the dark card surface (#171936) for lightness,
 // chroma, colorblind separation and 3:1 contrast. Assigned by topic order, never cycled.
-export const SERIES = ["#3987e5", "#d95926", "#199e70", "#b07400", "#d55181", "#9085e9"];
+export const SERIES = ["#3B82F6", "#EA580C", "#0D9488", "#C026D3", "#A16207", "#8B5CF6"];
 
-const GRID = "#E3E6F0";
-const MUTED = "#5D6283";
-const SURFACE = "#FFFFFF";
+const GRID = "#2C2F59";
+const MUTED = "#A1A1C2";
+const SURFACE = "#171936";
 
 /** Width of a container in CSS pixels, so the SVG draws at 1:1 and text stays 11px. */
 function useWidth<T extends HTMLElement>(fallback: number) {
@@ -160,7 +160,7 @@ export function MasteryChart({ topics, events }: { topics: Topic[]; events: Even
 }
 
 /** One measure across days, with a hover tooltip per bar. */
-export function DailyBars({ data, color = "#F5A623", unit = "XP" }: { data: { day: string; xp: number }[]; color?: string; unit?: string }) {
+export function DailyBars({ data, color = "#FBBF24", unit = "XP" }: { data: { day: string; xp: number }[]; color?: string; unit?: string }) {
   const [box, W] = useWidth<HTMLDivElement>(560);
   const H = 180;
   const pad = { l: 36, r: 4, t: 10, b: 24 };

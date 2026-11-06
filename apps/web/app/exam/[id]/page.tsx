@@ -321,7 +321,7 @@ export default function FightPage() {
             <span
               key={comboKey}
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 transition-colors ${
-                fight.combo >= 3 ? "animate-ignite bg-xp/15 text-xp shadow-[0_0_14px_-2px_rgba(224,154,0,0.5)]" : "text-muted"
+                fight.combo >= 3 ? "animate-ignite bg-xp/15 text-xp shadow-[0_0_14px_-2px_rgba(251,191,36,0.5)]" : "text-muted"
               }`}
               title="Correct answers in a row. Every 3 adds bonus XP."
             >

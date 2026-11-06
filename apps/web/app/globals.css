@@ -12,29 +12,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light theme. Channels only, so Tailwind's /opacity modifiers keep working. */
+/* Dark theme. Channels only, so Tailwind's /opacity modifiers keep working.
+   Palette: bg #090A1A, panels #11132B / #171936, purple #8B5CF6, blue #3B82F6,
+   green #22C55E, gold #FBBF24, text #F8FAFC / #A1A1C2. */
 :root {
-  color-scheme: light;
-  --ink: 238 240 248; /* inset wells: fields, code, tracks */
-  --surface: 255 255 255; /* cards */
-  --raised: 243 244 251; /* chips, hover rows */
-  --line: 223 226 238;
-  --text: 20 22 43;
-  --muted: 93 98 131;
-  --violet: 109 74 255;
-  --violet-deep: 79 47 224;
-  --violet-soft: 91 63 224; /* used as text, so it stays dark enough on white */
-  --cyan: 8 145 165;
-  --cyan-deep: 11 110 123;
-  --hp: 229 56 90;
-  --heal: 15 140 92;
-  --xp: 183 110 0; /* text and icons */
-  --sun: 255 192 61; /* fills */
+  color-scheme: dark;
+  --ink: 13 14 34; /* inset wells: fields, code, tracks */
+  --surface: 23 25 54; /* cards #171936 */
+  --raised: 33 36 72; /* chips, hover rows */
+  --line: 44 47 89;
+  --text: 248 250 252;
+  --muted: 161 161 194;
+  --violet: 139 92 246;
+  --violet-deep: 196 181 253; /* hover text on dark, so it's the light end */
+  --violet-soft: 196 181 253;
+  --cyan: 59 130 246; /* the Arena's blue */
+  --cyan-deep: 147 197 253;
+  --hp: 244 63 94;
+  --heal: 34 197 94;
+  --xp: 251 191 36; /* text and icons */
+  --sun: 251 191 36; /* fills */
 }
 
 html,
 body {
-  background: #f5f6fb;
+  background: #090a1a;
   color: rgb(var(--text));
 }
 
@@ -44,17 +46,17 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   background-image:
-    radial-gradient(900px 500px at 8% -10%, rgba(109, 74, 255, 0.10), transparent 60%),
-    radial-gradient(800px 500px at 100% 0%, rgba(8, 145, 165, 0.08), transparent 60%),
-    radial-gradient(700px 500px at 50% 110%, rgba(255, 192, 61, 0.10), transparent 60%),
-    linear-gradient(rgba(109, 74, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(109, 74, 255, 0.045) 1px, transparent 1px);
+    radial-gradient(900px 500px at 8% -10%, rgba(139, 92, 246, 0.16), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgba(59, 130, 246, 0.10), transparent 60%),
+    radial-gradient(700px 500px at 50% 110%, rgba(34, 197, 94, 0.06), transparent 60%),
+    linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
   background-size: auto, auto, auto, 40px 40px, 40px 40px;
   background-attachment: fixed;
 }
 
 ::selection {
-  background: rgba(109, 74, 255, 0.25);
+  background: rgba(139, 92, 246, 0.35);
 }
 
 :focus-visible {
@@ -81,13 +83,13 @@ body {
     transform: translateY(-1px);
   }
   .btn-primary {
-    @apply btn bg-gradient-to-b from-[#7D5CFF] to-violet text-white shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_8px_20px_-8px_rgba(109,74,255,0.8)] hover:shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_12px_26px_-8px_rgba(109,74,255,0.9)];
+    @apply btn bg-gradient-to-b from-[#9F7AFA] to-violet text-white shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_8px_20px_-8px_rgba(139,92,246,0.7)] hover:shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_12px_26px_-8px_rgba(139,92,246,0.85)];
   }
   .btn-cyan {
-    @apply btn bg-gradient-to-b from-[#12AFC4] to-cyan text-white shadow-[0_8px_20px_-8px_rgba(8,145,165,0.8)] hover:shadow-[0_12px_26px_-8px_rgba(8,145,165,0.9)];
+    @apply btn bg-gradient-to-b from-[#5B9BF8] to-cyan text-white shadow-[0_8px_20px_-8px_rgba(59,130,246,0.7)] hover:shadow-[0_12px_26px_-8px_rgba(59,130,246,0.85)];
   }
   .btn-sun {
-    @apply btn bg-gradient-to-b from-[#FFCB5C] to-sun text-night shadow-[0_8px_20px_-8px_rgba(230,150,0,0.8)] hover:shadow-[0_12px_26px_-8px_rgba(230,150,0,0.9)];
+    @apply btn bg-gradient-to-b from-[#FCD34D] to-sun text-night shadow-[0_8px_20px_-8px_rgba(251,191,36,0.55)] hover:shadow-[0_12px_26px_-8px_rgba(251,191,36,0.7)];
   }
   .btn-ghost {
     @apply btn border border-line bg-surface text-text shadow-card hover:border-violet/50 hover:text-violet-deep;
@@ -97,7 +99,7 @@ body {
     border-color: color-mix(in srgb, currentColor 30%, transparent);
   }
   .field {
-    @apply w-full rounded-chip border border-line bg-surface px-3 py-2.5 text-text shadow-[inset_0_1px_2px_rgba(20,22,43,0.05)] transition placeholder:text-muted/70 hover:border-violet/40 focus:border-violet focus:outline-none focus:ring-4 focus:ring-violet/15;
+    @apply w-full rounded-chip border border-line bg-ink px-3 py-2.5 text-text shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)] transition placeholder:text-muted/70 hover:border-violet/40 focus:border-violet focus:outline-none focus:ring-4 focus:ring-violet/15;
   }
   .label {
     @apply mb-1.5 block text-sm font-medium text-muted;

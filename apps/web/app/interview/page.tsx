@@ -117,7 +117,7 @@ export default function InterviewSetup() {
               <label htmlFor="length" className="text-sm text-muted">
                 Questions
               </label>
-              <input id="length" type="range" min={2} max={6} value={length} onChange={(e) => setLength(Number(e.target.value))} className="w-48 accent-[#6D4AFF]" />
+              <input id="length" type="range" min={2} max={6} value={length} onChange={(e) => setLength(Number(e.target.value))} className="w-48 accent-[#8B5CF6]" />
               <span className="font-display font-semibold tabular-nums">{length}</span>
               <span className="text-sm text-muted">plus up to 2 follow-ups</span>
             </div>
@@ -182,7 +182,7 @@ export default function InterviewSetup() {
           {resume && (
             <div className="mt-5">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={useResume} onChange={(e) => setUseResume(e.target.checked)} className="accent-[#6D4AFF]" />
+                <input type="checkbox" checked={useResume} onChange={(e) => setUseResume(e.target.checked)} className="accent-[#8B5CF6]" />
                 Use {resume.filename} ({resume.claims.length} claims found, {measurable.length} with numbers)
               </label>
               {resume.review && resume.review.total > 0 ? (

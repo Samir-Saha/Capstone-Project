@@ -56,12 +56,12 @@ function AnswerClock({ seconds }: { seconds: number }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   const p = Math.min(1, seconds / 120);
-  const tone = seconds < 45 ? "#5D6283" : seconds <= 150 ? "#E09A00" : "#E5385A";
+  const tone = seconds < 45 ? "#A1A1C2" : seconds <= 150 ? "#FBBF24" : "#F43F5E";
   const note = seconds < 45 ? "Keep going" : seconds <= 150 ? "Good length" : "Wrap it up";
   return (
     <div className="flex items-center gap-3">
       <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90" aria-hidden>
-        <circle cx="32" cy="32" r={r} fill="none" stroke="#DFE2EE" strokeWidth="5" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#2C2F59" strokeWidth="5" />
         <circle
           cx="32"
           cy="32"
