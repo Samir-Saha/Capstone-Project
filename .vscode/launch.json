@@ -1,0 +1,35 @@
+{
+  // Run and Debug panel (F5). Pick "Reps: API + web" to start both with breakpoints.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Reps: API",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["reps_api.main:app", "--port", "8000"],
+      "cwd": "${workspaceFolder}/apps/api",
+      "python": "${workspaceFolder}/apps/api/.venv/Scripts/python.exe",
+      "linux": { "python": "${workspaceFolder}/apps/api/.venv/bin/python" },
+      "osx": { "python": "${workspaceFolder}/apps/api/.venv/bin/python" },
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": true
+    },
+    {
+      "name": "Reps: web",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/apps/web",
+      "serverReadyAction": { "pattern": "Local:\\s+(https?://\\S+)", "uriFormat": "%s", "action": "openExternally" }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Reps: API + web",
+      "configurations": ["Reps: API", "Reps: web"],
+      "preLaunchTask": "Reps: setup",
+      "stopAll": true
+    }
+  ]
+}

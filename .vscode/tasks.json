@@ -1,0 +1,72 @@
+{
+  // Run with Ctrl+Shift+B ("Reps: start") or Terminal > Run Task.
+  "version": "2.0.0",
+  "windows": {
+    "options": {
+      "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"] }
+    }
+  },
+  "tasks": [
+    {
+      "label": "Reps: setup",
+      "detail": "First run only: creates apps/api/.venv and installs Python and web dependencies",
+      "type": "shell",
+      "windows": {
+        "command": "if (-not (Test-Path apps/api/.venv/Scripts/python.exe)) { python -m venv apps/api/.venv; apps/api/.venv/Scripts/python -m pip install --upgrade pip; apps/api/.venv/Scripts/python -m pip install -e 'apps/api[dev]' }; if (-not (Test-Path apps/web/node_modules)) { npm --prefix apps/web install }"
+      },
+      "command": "[ -x apps/api/.venv/bin/python ] || (python3 -m venv apps/api/.venv && apps/api/.venv/bin/python -m pip install -e 'apps/api[dev]'); [ -d apps/web/node_modules ] || npm --prefix apps/web install",
+      "problemMatcher": []
+    },
+    {
+      "label": "Reps: API",
+      "detail": "FastAPI on http://localhost:8000",
+      "type": "shell",
+      "dependsOn": "Reps: setup",
+      "options": { "cwd": "${workspaceFolder}/apps/api" },
+      "windows": {
+        "command": "if (Test-Path ../../.env) { Get-Content ../../.env | Where-Object { $_ -match '^[^#].*=' } | ForEach-Object { $k, $v = $_ -split '=', 2; Set-Item -Path \"env:$k\" -Value $v } }; .venv/Scripts/python -m uvicorn reps_api.main:app --port 8000 --reload"
+      },
+      "command": "set -a; [ -f ../../.env ] && . ../../.env; set +a; .venv/bin/python -m uvicorn reps_api.main:app --port 8000 --reload",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": { "regexp": "^__never__$" },
+        "background": { "activesBegin": true, "beginsPattern": "Will watch|Started reloader", "endsPattern": "Application startup complete" }
+      },
+      "presentation": { "group": "reps", "panel": "dedicated" }
+    },
+    {
+      "label": "Reps: web",
+      "detail": "Next.js on http://localhost:3000",
+      "type": "shell",
+      "dependsOn": "Reps: setup",
+      "options": { "cwd": "${workspaceFolder}/apps/web" },
+      "command": "npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": { "regexp": "^__never__$" },
+        "background": { "activesBegin": true, "beginsPattern": "next dev|Next\\.js", "endsPattern": "Ready in|Local:" }
+      },
+      "presentation": { "group": "reps", "panel": "dedicated" }
+    },
+    {
+      "label": "Reps: start",
+      "detail": "API and web side by side, then open http://localhost:3000",
+      "dependsOn": ["Reps: API", "Reps: web"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Reps: checks",
+      "detail": "pytest, ruff and the web typecheck",
+      "type": "shell",
+      "dependsOn": "Reps: setup",
+      "windows": {
+        "command": "Push-Location apps/api; .venv/Scripts/python -m pytest -q; .venv/Scripts/ruff check .; Pop-Location; Push-Location apps/web; npx tsc --noEmit; Pop-Location"
+      },
+      "command": "(cd apps/api && .venv/bin/python -m pytest -q && .venv/bin/ruff check .) && (cd apps/web && npx tsc --noEmit)",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

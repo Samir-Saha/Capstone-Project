@@ -12,6 +12,8 @@ Wherever an answer can be checked by running something, Reps checks it that way.
 
 **macOS / Linux:** `./start-reps.sh`
 
+**VS Code:** open the repo folder and press `Ctrl+Shift+B` (task "Reps: start"). The first run installs everything, then the API and web app run in two terminal panels; open http://localhost:3000. To debug with breakpoints, use Run and Debug → "Reps: API + web". `Terminal → Run Task → Reps: checks` runs pytest, ruff and the typecheck.
+
 Use Chrome or Edge for voice interviews. Everything else works in any modern browser. Progress is saved locally in `apps/api/data/reps.db`.
 
 Optional: copy `.env.example` to `.env` and set `LLM_API_KEY` and `LLM_MODEL` to turn on question generation from your own PDFs and AI STAR scoring in interviews.
