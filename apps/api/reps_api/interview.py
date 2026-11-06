@@ -108,7 +108,13 @@ ACTION_VERBS = re.compile(
     r"automated|optimized|cut|grew|won|founded|taught|trained|deployed|shipped|analyzed|scaled|raised|mentored|coordinated)\b",
     re.I,
 )
-NUMBERISH = re.compile(r"\d|percent|\bhalf\b|\bdouble[d]?\b|\btriple[d]?\b|\bthousand|\bhundred|\bmillion", re.I)
+# Spoken answers arrive as words ("forty percent", "two weeks"), so spelled-out numbers count too.
+# "one" is left out: it is too common as a pronoun to mean a quantity.
+NUMBERISH = re.compile(
+    r"\d|percent|\bhalf\b|\bdouble[d]?\b|\btriple[d]?\b|\bthousand|\bhundred|\bmillion|\bbillion|\bdozens?\b"
+    r"|\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b",
+    re.I,
+)
 # Bullets as they come out of real PDFs: glyphs, dashes, icon-font private-use
 # characters, and "?" where the PDF's bullet glyph has no Unicode mapping.
 BULLET = re.compile(r"^\s*[•\-–▪●◦‣*·?-]\s+|^\s*o\s+(?=[A-Z])")
@@ -447,7 +453,8 @@ def measure(answer: AnswerIn) -> dict[str, Any]:
 
 
 RESULT_WORDS = re.compile(
-    r"\b(result|resulted|outcome|so that|which meant|ended up|led to|increased|decreased|reduced|improved|cut|grew|saved|won|shipped|launched)\b",
+    r"\b(result|resulted|outcome|so that|which meant|ended up|led to|increased|decreased|reduced|improved|cut|grew|saved|won|shipped|launched"
+    r"|dropped|fell|rose|doubled|halved|tripled|went (up|down|from)|faster|slower|on time|delivered|adopted|first place|kept it)\b",
     re.I,
 )
 MEASURE_WORDS = re.compile(r"\b(measured|tracked|metric|baseline|benchmark|compared|a/b|before and after|survey|logged|dashboard)\b", re.I)
@@ -471,21 +478,34 @@ def checks(answer: AnswerIn, kind: str) -> dict[str, Any]:
     return out
 
 
+# Past-tense verbs that end in -ed are caught generally; these are the common irregular ones.
+_IRREGULAR = (
+    "built|wrote|made|set|led|cut|split|ran|took|got|found|chose|put|kept|sent|told|did|began|drove|rewrote|"
+    "brought|bought|gave|held|met|paid|read|sold|spent|taught|thought|threw|understood|won|shipped|broke|hit|fed"
+)
 STAR_CUES = {
     "situation": re.compile(
-        r"\b(when i was|while i was|at (my|our|the) (job|internship|company|school)|last (summer|year|semester)|during|back in"
-        r"|the (team|company|clinic|project) (had|was|needed)|there was)\b",
+        r"(^\W*(um,?\s*|uh,?\s*|so,?\s*|well,?\s*)*(at|in|on|during|while|when|last|back in|over|this past)\b"
+        r"|\b(when i was|while i was|at (my|our|the) (job|internship|company|school)|last (summer|year|semester)|during|back in"
+        r"|the (team|company|clinic|project) (had|was|needed)|there was|there were"
+        r"|(was|were) (too |really |very )?(slow|broken|failing|late|behind|down|stuck|unreliable|confusing)"
+        r"|disagreed|failed|struggl\w*|deadline|the (problem|issue|bug) was|we had \w+ (hours|days|weeks)))",
         re.I,
     ),
     "task": re.compile(
-        r"\b(my (job|role|task|goal|responsibility) was|i was (asked|responsible|tasked|in charge)|i needed to|we needed to|the goal was|i had to|my part was)\b", re.I
+        r"\b(my (job|role|task|goal|responsibility) was|i was (asked|responsible|tasked|in charge)|i needed to|we needed to"
+        r"|the goal was|i had to|my part was|i wanted to|asked me to|i was supposed to|i had \w+ (hours|days|weeks))\b",
+        re.I,
     ),
     "action": re.compile(
-        r"\b(i (built|wrote|designed|created|led|set up|changed|fixed|automated|talked|met|decided|added|used|made|started|organized|proposed|tested|debugged))\b", re.I
+        r"\bi (\w+ly )?(set up|" + _IRREGULAR + r"|(?!(needed|wanted|learned|realized|liked|loved|hoped|guessed|worked)\b)[a-z]{3,}ed)\b",
+        re.I,
     ),
     "result": re.compile(
         r"(\b(as a result|in the end|which (cut|saved|reduced|increased|improved|led)|so (we|it|the)|the result|ended up"
-        r"|that (cut|saved|reduced|increased|improved))\b|\d+ ?%)",
+        r"|that (cut|saved|reduced|increased|improved)|dropped|fell|rose|doubled|halved|tripled|went (up|down|from)"
+        r"|we (won|shipped|launched|kept|delivered|demoed)|on time|first place|was adopted)\b"
+        r"|\d+ ?%|\b\w+ percent\b)",
         re.I,
     ),
 }
@@ -671,7 +691,7 @@ def _fluency(text: str, metrics: dict[str, Any]) -> tuple[bool, str]:
     fillers = metrics.get("filler_total", 0)
     fpm = metrics.get("fillers_per_min")
     if (fpm is not None and fpm > 4) or (fpm is None and fillers > 3):
-        problems.append(f"{fillers} filler words")
+        problems.append(f"{fillers} filler word{'s' if fillers != 1 else ''}")
     spoken = text
     for pattern, repl in SPOKEN:
         spoken = re.sub(pattern, repl, spoken, flags=re.I)

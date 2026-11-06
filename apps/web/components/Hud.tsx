@@ -67,7 +67,9 @@ export function SegmentedHp({
           {topics.map((t) => (
             <div
               key={t.id}
-              className={`line-clamp-2 text-[11px] leading-tight ${t.id === activeTopicId ? "font-semibold text-xp" : "text-muted"}`}
+              title={t.name}
+              lang="en"
+              className={`line-clamp-2 min-w-0 hyphens-auto break-words text-[11px] leading-tight ${t.id === activeTopicId ? "font-semibold text-xp" : "text-muted"}`}
               style={{ width: `${100 / n}%` }}
             >
               {t.name}

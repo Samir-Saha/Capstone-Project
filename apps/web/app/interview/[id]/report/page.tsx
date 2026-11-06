@@ -77,7 +77,7 @@ function TurnCard({ t, aiAvailable }: { t: Turn; aiAvailable: boolean }) {
               </dd>
             </dl>
           ) : (
-            <p className="mt-2 text-sm text-muted">Typed answer, so pace and pauses weren't measured. {m.filler_total} filler words.</p>
+            <p className="mt-2 text-sm text-muted">Typed answer, so pace and pauses weren't measured. {m.filler_total} filler word{m.filler_total === 1 ? "" : "s"}.</p>
           )}
           {fillers.length > 0 && <p className="mt-2 text-xs text-muted">{fillers.map(([w, n]) => `“${w}” ×${n}`).join(", ")}</p>}
           <ul className="mt-3 space-y-1.5 text-sm">

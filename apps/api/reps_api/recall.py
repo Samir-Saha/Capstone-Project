@@ -98,7 +98,7 @@ def _sentences(extraction: Extraction) -> list[tuple[str, int, str | None]]:
             sent = sent.strip(" -–•\"'")
             words = sent.split()
             numbers = len(re.findall(r"\d+(?:[.,]\d+)?", sent))
-            if 7 <= len(words) <= 45 and numbers <= 1 and not re.match(r"^\d+[.)]\s", sent) and sum(c.isalpha() for c in sent) / max(1, len(sent)) > 0.6:
+            if 6 <= len(words) <= 45 and numbers <= 1 and not re.match(r"^\d+[.)]\s", sent) and sum(c.isalpha() for c in sent) / max(1, len(sent)) > 0.6:
                 out.append((sent, page_no, heading))
 
     for page in extraction.pages:
@@ -106,9 +106,7 @@ def _sentences(extraction: Extraction) -> list[tuple[str, int, str | None]]:
         for raw in [*page.text.splitlines(), ""]:
             line, md_heading, bullet = _clean_line(raw)
             ends_sentence = not para or re.search(r"[.!?:;]$", para[-1]) is not None
-            is_heading = bool(line) and len(line.split()) <= 8 and (
-                md_heading or (HEADING_RE.match(line) is not None and ends_sentence and not bullet)
-            )
+            is_heading = bool(line) and len(line.split()) <= 8 and (md_heading or (HEADING_RE.match(line) is not None and ends_sentence and not bullet))
             if is_heading:
                 flush(para, page.number)
                 para = []
@@ -285,6 +283,12 @@ def build(course_id: str, extraction: Extraction, seed_text: str = "") -> tuple[
             candidates = [t for t in distinctive if t in lowered and len(t) >= 5]
             candidates.sort(key=lambda t: (counts[t] > 12, -len(t.split()), counts[t]))
             term = next((t for t in candidates if _blank(s, t)), None)
+            if not term:
+                # Short notes rarely repeat a term. Fall back to the sentence's own key noun,
+                # preferring its subject ("The _____ stores the cell's DNA" -> nucleus).
+                words = _content_words(s)
+                fallback = [w for i, w in enumerate(words) if len(w) >= 5 and (i == 0 or w in nouns or NOUN_SUFFIX.search(w))]
+                term = next((t for t in fallback if _blank(s, t)), None)
             if not term:
                 rejected.append("no key term to ask about")
                 continue

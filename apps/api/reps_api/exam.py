@@ -782,12 +782,18 @@ def results(store: Store, session_id: str) -> dict[str, Any]:
                 "steps": steps,
             }
         )
-    weakest = sorted(state["topics"], key=lambda t: t["mastery"])[:2]
+    # Only point at topics still under the victory bar; a 93% topic isn't "practice next".
+    below = [t for t in state["topics"] if t["mastery"] < 0.75]
+    weakest = sorted(below, key=lambda t: t["mastery"])[:2]
+    if weakest:
+        next_steps = [f"Practice {t['name'].lower()}: mastery {round(t['mastery'] * 100)}%" for t in weakest]
+    else:
+        next_steps = ["Every topic is at 75% or better. Come back tomorrow for the Daily Raid before anything fades"]
     return {
         "session": state,
         "topics": list(by_topic.values()),
         "attempts": review,
         "xp_earned": xp_total,
         "grading": {"verified": len(rows), "ai_evaluated": 0},
-        "next_steps": [f"Practice {t['name'].lower()}: mastery {round(t['mastery'] * 100)}%" for t in weakest],
+        "next_steps": next_steps,
     }

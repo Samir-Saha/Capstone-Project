@@ -89,7 +89,7 @@ export default function Hub() {
           {player.name === "Player" && <NameEditor player={player} onSaved={setPlayer} />}
           <p className="mt-2 max-w-xl text-muted">
             {fresh
-              ? "Start with a boss fight. Every answer is checked by math, not guessed by AI, and your weak spots show up as you play."
+              ? "Start with a boss fight. Every answer is checked by code, not guessed by AI, and your weak spots show up as you play."
               : player.practiced_today
                 ? "You've trained today. One more round keeps the weak spots shrinking."
                 : "Pick up where you left off, or hit your weakest topic first."}

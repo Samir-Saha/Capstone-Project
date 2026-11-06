@@ -286,3 +286,41 @@ def test_resume_review_skips_education_lines():
     assert edu["ready"] and not edu["fixes"]
     weak = review_claim("Responsible for helping with the website")
     assert not weak["ready"]
+
+
+def test_star_cues_catch_plain_spoken_answers():
+    from reps_api.interview import NUMBERISH, star_coverage
+
+    full = (
+        "Um, so at Nomad AI our support answers were slow. I was asked to fix latency. I profiled the pipeline "
+        "and added a cache. Latency dropped forty percent and we shipped it to ten thousand users."
+    )
+    assert all(star_coverage(full).values())
+    went = "In my order book project the engine was too slow. I replaced the map. Throughput went from 200 thousand to a million."
+    assert star_coverage(went)["action"] and star_coverage(went)["result"] and star_coverage(went)["situation"]
+    vague = "I want to grow as an engineer and ship things people use."
+    assert not any(star_coverage(vague).values())
+    assert not star_coverage("I learned to measure before optimizing.")["action"]
+    assert NUMBERISH.search("we piloted both for two weeks")
+    assert not NUMBERISH.search("I want to grow as an engineer")
+
+
+def test_short_notes_still_cover_every_heading():
+    # Terms that appear only once used to be skipped, so short study guides lost whole topics.
+    from reps_api import recall
+    from reps_api.ingest.pdf import extract_text
+
+    notes = (
+        "# Cell Structure\nThe nucleus stores the cell's DNA and controls gene expression. "
+        "Mitochondria produce ATP through cellular respiration. Ribosomes build proteins by translating messenger RNA.\n\n"
+        "# Photosynthesis\nPhotosynthesis converts light energy into chemical energy stored in glucose. "
+        "The Calvin cycle fixes carbon dioxide in the stroma using ATP and NADPH.\n\n"
+        "# Cellular Respiration\nGlycolysis splits one glucose molecule into two pyruvate molecules in the cytoplasm. "
+        "Fermentation lets cells make ATP without oxygen by regenerating NAD+."
+    )
+    topics, _ = recall.build("c", extract_text(notes))
+    assert [t["name"] for t in topics] == ["Cell Structure", "Photosynthesis", "Cellular Respiration"]
+    assert sum(len(t["templates"]) for t in topics) >= 6
+    for t in topics:
+        for q in t["templates"]:
+            assert q.answer.lower() not in q.prompt.lower()

@@ -97,7 +97,7 @@ export default function Results() {
           <div className="flex items-center gap-2 font-display text-3xl font-bold text-heal">
             <ShieldCheck size={26} aria-hidden /> {data.grading.verified}
           </div>
-          <div className="text-sm text-muted">Graded by math, {data.grading.ai_evaluated} by AI</div>
+          <div className="text-sm text-muted">Checked by rules, {data.grading.ai_evaluated} by AI</div>
         </div>
       </section>
 
