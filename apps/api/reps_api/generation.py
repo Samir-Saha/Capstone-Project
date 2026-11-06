@@ -163,11 +163,7 @@ def generate_course(store: Store, provider: LLMProvider | None, name: str, extra
                 "insert into verification_log (id, subject, subject_id, status, reason, method, created_at) values (?, 'generated_template', ?, 'verified', null, ?, ?)",
                 (new_id(), rt.id, "grounded-recall", now_iso()),
             )
-    for reason in recall_rejected[:200]:
-        store.run(
-            "insert into verification_log (id, subject, subject_id, status, reason, method, created_at) values (?, 'generated_template', ?, 'rejected', ?, ?, ?)",
-            (new_id(), course_id, reason, "grounded-recall", now_iso()),
-        )
+    # Skipped sentences aren't rejected questions (most sentences just aren't quizzable), so they aren't logged.
     n_recall = sum(len(t["templates"]) for t in recall_topics)
     if not kept_topics and not recall_topics:
         return {"course_id": None, "kept": 0, "rejected": rejected, "message": ai_note or "Not enough readable text to build questions from."}
@@ -208,7 +204,7 @@ def generate_course(store: Store, provider: LLMProvider | None, name: str, extra
     return {
         "course_id": course_id,
         "kept": kept + n_recall,
-        "rejected": rejected + len(recall_rejected),
+        "rejected": rejected,
         "ai_kept": kept,
         "ai_rejected": rejected,
         "from_notes": n_recall,
