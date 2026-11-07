@@ -26,3 +26,4 @@ Run pytest, ruff and tsc before calling a change done.
 - `.env` holds `LLM_API_KEY` / `LLM_MODEL`. Never commit `.env` and never put a real key in `.env.example`.
 - Don't create or restore Supabase projects without asking.
 - Commits are authored as Samir Saha <samirsaha0613@gmail.com>, with no Co-Authored-By or session trailers.
+- After each completed step, once pytest, ruff and tsc pass, commit with a short message and push to main. Run `git pull` first so you never push over newer work.
