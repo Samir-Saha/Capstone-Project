@@ -2,6 +2,7 @@
 
 import { Code2, Flame, Home, LineChart, Mic, Settings, Swords, Users, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
+import { Penguin } from "@/components/Penguin";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AchievementIcon } from "@/components/AchievementIcon";
@@ -109,7 +110,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="mt-auto px-5 text-xs leading-relaxed text-muted">
+        <div className="mx-3 mt-auto overflow-hidden rounded-panel border border-violet/40 bg-gradient-to-b from-[#2A1A5E] to-surface text-center shadow-[0_0_24px_-10px_rgba(139,92,246,0.8)]">
+          <div className="relative flex h-24 items-end justify-center bg-gradient-to-b from-[#1E1250] to-[#4C2491]">
+            <div className="absolute inset-x-0 bottom-0 h-3 bg-[#120A2C]" />
+            <Penguin className="relative mb-2 h-16 w-16" bob />
+          </div>
+          <div className="px-3 py-3">
+            <div className="h-display text-base">{player && player.streak > 0 ? "Keep going!" : "Start a streak"}</div>
+            <div className="mt-0.5 text-sm text-muted">
+              {player && player.streak > 0 ? (
+                <>
+                  You&apos;re on a <span className="font-semibold text-text">{player.streak} day streak</span> <span aria-hidden>🔥</span>
+                </>
+              ) : (
+                "One round today starts it."
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 px-5 text-xs leading-relaxed text-muted">
           Local mode. Progress is saved on this computer.
         </div>
       </aside>

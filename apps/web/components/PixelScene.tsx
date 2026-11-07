@@ -60,8 +60,8 @@ export function QuestBanner({ className = "" }: { className?: string }) {
       <g transform="translate(108 0)">
         <Rects rects={STARS} fill="#F5E9FF" />
         {/* moon */}
-        <Rects rects={[[156, 6, 8, 1], [154, 7, 12, 1], [153, 8, 14, 6], [154, 14, 12, 1], [156, 15, 8, 1]]} fill="#F6C9E8" />
-        <Rects rects={[[158, 9, 3, 2], [162, 12, 2, 1]]} fill="#E3A9D3" />
+        <Rects rects={[[126, 6, 8, 1], [124, 7, 12, 1], [123, 8, 14, 6], [124, 14, 12, 1], [126, 15, 8, 1]]} fill="#F6C9E8" />
+        <Rects rects={[[128, 9, 3, 2], [132, 12, 2, 1]]} fill="#E3A9D3" />
         <Rects rects={CLOUDS} fill="#8E4FB8" />
         <Rects rects={CLOUDS.map(([x, y, w]) => [x + 2, y, w - 6, 1] as R)} fill="#B67AD6" />
         <Rects rects={CASTLE.map(([x, y, w, h]) => [x - 10, y + 4, w, h] as R)} fill="#170C38" />

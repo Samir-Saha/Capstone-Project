@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BossArt } from "@/components/BossArt";
 import { RaidCard } from "@/components/RaidCard";
 import { MasteryBar } from "@/components/Hud";
+import { Penguin } from "@/components/Penguin";
 import { QuestBanner } from "@/components/PixelScene";
 import { Ring } from "@/components/Ring";
 import { CountStat, ErrorNote, Spinner, XP_REASON, timeAgo } from "@/components/ui";
@@ -122,9 +123,20 @@ export default function Hub() {
       {/* Quest banner */}
       <section className="relative overflow-hidden rounded-panel border border-violet/40 shadow-[0_0_40px_-12px_rgba(139,92,246,0.6)]">
         <QuestBanner className="absolute inset-0 h-full w-full" />
-        <div className="relative max-w-xl bg-gradient-to-r from-[#1E1250]/80 via-[#1E1250]/40 to-transparent px-6 py-8 md:px-8 md:py-10">
+        <div className="relative flex items-end gap-2 bg-gradient-to-r from-[#1E1250]/80 via-[#1E1250]/40 to-transparent pl-4 pr-6 md:pl-6">
+          <div className="relative hidden shrink-0 self-end pb-3 pt-5 sm:block">
+            <Penguin className="relative z-10 h-28 w-28 md:h-32 md:w-32" bob />
+            <svg viewBox="0 0 40 8" shapeRendering="crispEdges" className="absolute bottom-0 left-1/2 h-5 w-36 -translate-x-1/2" aria-hidden>
+              <rect x="4" y="0" width="32" height="2" fill="#3B2A73" />
+              <rect x="1" y="2" width="38" height="6" fill="#241848" />
+              <rect x="6" y="3" width="6" height="1" fill="#3B2A73" />
+              <rect x="22" y="4" width="8" height="1" fill="#3B2A73" />
+            </svg>
+          </div>
+          <div className="max-w-xl py-8 md:py-10">
           <p className="h-display text-2xl italic text-white md:text-3xl">Your study quest awaits…</p>
           <p className="mt-2 text-[15px] text-white/85">Study any class, grind coding problems and run mock interviews, all in one game.</p>
+          </div>
         </div>
       </section>
 
