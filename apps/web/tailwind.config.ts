@@ -25,6 +25,7 @@ export default {
       },
       fontFamily: {
         display: ['"Chakra Petch"', "system-ui", "sans-serif"],
+        pixel: ['"Pixelify Sans"', '"Chakra Petch"', "system-ui", "sans-serif"],
         sans: ['"IBM Plex Sans"', "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },

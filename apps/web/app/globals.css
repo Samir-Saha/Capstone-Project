@@ -1,3 +1,6 @@
+@import "@fontsource/pixelify-sans/500.css";
+@import "@fontsource/pixelify-sans/600.css";
+@import "@fontsource/pixelify-sans/700.css";
 @import "@fontsource/chakra-petch/500.css";
 @import "@fontsource/chakra-petch/600.css";
 @import "@fontsource/chakra-petch/700.css";
@@ -107,8 +110,13 @@ body {
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs text-muted;
   }
+  /* Headings in a pixel face, like the HUD of a 16-bit game. Body text stays readable. */
   .h-display {
-    @apply font-display font-semibold tracking-tight;
+    @apply font-pixel font-semibold tracking-normal;
+  }
+  /* Mode cards: tinted glass with a colored rim, one per mode. */
+  .mode-card {
+    @apply relative flex flex-col overflow-hidden rounded-panel border p-6 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-1 active:translate-y-0;
   }
 }
 

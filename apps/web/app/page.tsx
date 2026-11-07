@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, Code2, Mic, Pencil, Play, Swords, Users } from "lucide-react";
+import { Code2, Flame, Mic, Pencil, Play, Star, Swords, Trophy, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BossArt } from "@/components/BossArt";
 import { RaidCard } from "@/components/RaidCard";
-import { MasteryBar, SegmentedHp } from "@/components/Hud";
+import { MasteryBar } from "@/components/Hud";
+import { QuestBanner } from "@/components/PixelScene";
+import { Ring } from "@/components/Ring";
 import { CountStat, ErrorNote, Spinner, XP_REASON, timeAgo } from "@/components/ui";
 import { api, notifyProgress, type Course, type InterviewHistoryItem, type Player, type ProblemSummary } from "@/lib/api";
 
@@ -77,19 +79,34 @@ export default function Hub() {
   const fresh = player.stats.questions_answered === 0 && solved === 0 && player.stats.interviews === 0;
   const doneInterviews = interviews.filter((i) => i.status === "completed").length;
 
+  const allTopics = courses.flatMap((c) => c.topics);
+  const tried = allTopics.filter((t) => t.attempts > 0);
+  const studyMastery = tried.length ? tried.reduce((a, t) => a + t.mastery, 0) / tried.length : null;
+  const beaten = courses.filter((c) => c.victories > 0).length;
+  const lastInterview = interviews.find((i) => i.status === "completed");
+  const xpIcon = (reason: string) =>
+    reason.startsWith("coding") ? (
+      <Code2 size={16} className="text-cyan" aria-hidden />
+    ) : reason.startsWith("interview") ? (
+      <Mic size={16} className="text-heal" aria-hidden />
+    ) : reason.startsWith("party") ? (
+      <Users size={16} className="text-cyan" aria-hidden />
+    ) : (
+      <Swords size={16} className="text-violet-soft" aria-hidden />
+    );
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <section className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <h1 className="h-display text-4xl md:text-5xl">
-            {greeting()}
-            {player.name !== "Player" ? `, ${player.name}` : ""}.
+            {player.name !== "Player" ? `Welcome back, ${player.name}!` : `${greeting()}.`}
             {player.name !== "Player" && <NameEditor player={player} onSaved={setPlayer} />}
           </h1>
           {player.name === "Player" && <NameEditor player={player} onSaved={setPlayer} />}
           <p className="mt-2 max-w-xl text-muted">
             {fresh
-              ? "Start with a boss fight. Every answer is checked by code, not guessed by AI, and your weak spots show up as you play."
+              ? "Practice. Improve. Level up. Every answer is checked by code, not guessed by AI."
               : player.practiced_today
                 ? "You've trained today. One more round keeps the weak spots shrinking."
                 : "Pick up where you left off, or hit your weakest topic first."}
@@ -102,70 +119,165 @@ export default function Hub() {
         </div>
       </section>
 
+      {/* Quest banner */}
+      <section className="relative overflow-hidden rounded-panel border border-violet/40 shadow-[0_0_40px_-12px_rgba(139,92,246,0.6)]">
+        <QuestBanner className="absolute inset-0 h-full w-full" />
+        <div className="relative max-w-xl bg-gradient-to-r from-[#1E1250]/80 via-[#1E1250]/40 to-transparent px-6 py-8 md:px-8 md:py-10">
+          <p className="h-display text-2xl italic text-white md:text-3xl">Your study quest awaits…</p>
+          <p className="mt-2 text-[15px] text-white/85">Study any class, grind coding problems and run mock interviews, all in one game.</p>
+        </div>
+      </section>
+
       {/* The three modes */}
-      <section aria-labelledby="modes" className="grid gap-4 lg:grid-cols-[1.35fr_1fr_1fr]">
+      <section aria-labelledby="modes" className="grid gap-5 lg:grid-cols-3">
         <h2 id="modes" className="sr-only">
           Training modes
         </h2>
         <Link
           href={featured?.active_session_id ? `/exam/${featured.active_session_id}` : "/exam"}
-          className="group relative overflow-hidden rounded-panel border border-line bg-gradient-to-br from-violet/[0.09] to-surface p-6 shadow-card lift hover:border-violet/70"
+          className="mode-card group border-violet/50 bg-gradient-to-br from-violet/25 via-violet/[0.08] to-surface shadow-[0_0_30px_-14px_rgba(139,92,246,0.9)] hover:border-violet"
         >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 font-display text-sm font-semibold text-violet-soft">
-                <Swords size={16} aria-hidden /> Boss fights
-              </div>
-              <h3 className="h-display mt-2 text-2xl">{featured ? featured.boss_name : "Exam bosses"}</h3>
-              <p className="mt-1 text-sm text-muted">
-                {featured ? `${featured.name}${featured.active_session_id ? ", fight in progress" : ""}` : "Your syllabus becomes the boss."}
-              </p>
+          <div className="flex items-start gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-violet/25 text-violet-soft ring-1 ring-violet/50">
+              <Swords size={28} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h3 className="h-display text-2xl">Study</h3>
+              <p className="text-sm text-muted">Turn your notes into a boss.</p>
             </div>
-            {featured && <BossArt courseId={featured.id} name={featured.boss_name} className="-mr-2 -mt-2 h-28 w-28 shrink-0" track />}
+            <span className="chip ml-auto shrink-0 border-violet/50 bg-violet/15 text-violet-soft">{beaten} beaten</span>
           </div>
-          {featured && (
-            <div className="mt-5">
-              <SegmentedHp topics={featured.topics} hp={featured.hp} compact />
-            </div>
-          )}
-          <span className="btn-primary mt-5">
-            <Play size={16} aria-hidden /> {featured?.active_session_id ? "Resume the fight" : "Choose a boss"}
+          <span className="btn-primary mt-5 w-full">
+            <Play size={16} aria-hidden /> {featured?.active_session_id ? "Resume the fight" : "Start a boss fight"}
           </span>
+          <div className="mt-5 flex items-center gap-3 border-t border-violet/25 pt-4">
+            {featured && <BossArt courseId={featured.id} name={featured.boss_name} className="h-14 w-14 shrink-0" />}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-muted">Current boss</div>
+              <div className="truncate font-semibold">{featured ? featured.boss_name : "None yet"}</div>
+              {featured && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink ring-1 ring-line">
+                    <div className="h-full rounded-full bg-gradient-to-r from-[#FF3D66] to-hp" style={{ width: `${featured.hp}%` }} />
+                  </div>
+                  <span className="text-xs tabular-nums text-muted">{featured.hp} HP</span>
+                </div>
+              )}
+            </div>
+          </div>
         </Link>
 
-        <Link href="/arena" className="group rounded-panel border border-line bg-gradient-to-br from-cyan/[0.09] to-surface p-6 shadow-card lift hover:border-cyan/70">
-          <div className="flex items-center gap-2 font-display text-sm font-semibold text-cyan">
-            <Code2 size={16} aria-hidden /> Arena
+        <Link
+          href="/arena"
+          className="mode-card group border-cyan/50 bg-gradient-to-br from-cyan/25 via-cyan/[0.08] to-surface shadow-[0_0_30px_-14px_rgba(59,130,246,0.9)] hover:border-cyan"
+        >
+          <div className="flex items-start gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cyan/25 text-cyan-deep ring-1 ring-cyan/50">
+              <Code2 size={28} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h3 className="h-display text-2xl">Code</h3>
+              <p className="text-sm text-muted">Solve. Prove. Level up.</p>
+            </div>
+            <span className="chip ml-auto shrink-0 border-cyan/50 bg-cyan/15 text-cyan-deep">
+              {solved}/{problems.length}
+            </span>
           </div>
-          <h3 className="h-display mt-2 text-2xl">Coding patterns</h3>
-          <p className="mt-1 text-sm text-muted">Original problems, graded by running your code against hidden tests.</p>
-          <div className="mt-5 grid grid-cols-6 gap-1.5" aria-label={`${solved} of ${problems.length} solved`}>
-            {problems.map((p) => (
-              <div
-                key={p.slug}
-                title={`${p.title}: ${p.status}`}
-                className={`flex h-9 items-center justify-center rounded-md border ${
-                  p.status === "solved" ? "border-cyan bg-cyan/20 text-cyan" : p.status === "attempted" ? "border-cyan/40 bg-raised" : "border-line bg-ink/50"
-                }`}
-              >
-                {p.status === "solved" && <Check size={16} aria-hidden />}
+          <span className="btn-cyan mt-5 w-full">Start a problem</span>
+          <div className="mt-5 grid grid-cols-2 border-t border-cyan/25 pt-4">
+            <div>
+              <div className="text-xs text-muted">Day streak</div>
+              <div className="mt-1 flex items-center gap-1.5 font-pixel text-2xl">
+                <Flame size={20} className="text-xp" aria-hidden /> {player.streak} {player.streak === 1 ? "day" : "days"}
               </div>
-            ))}
+            </div>
+            <div className="border-l border-cyan/25 pl-4">
+              <div className="text-xs text-muted">Problems solved</div>
+              <div className="mt-1 flex items-center gap-1.5 font-pixel text-2xl">
+                <Trophy size={20} className="text-xp" aria-hidden /> {solved}
+              </div>
+            </div>
           </div>
-          <span className="btn-cyan mt-5">Enter the Arena</span>
         </Link>
 
-        <Link href="/interview" className="group rounded-panel border border-line bg-gradient-to-br from-sun/[0.16] to-surface p-6 shadow-card lift hover:border-xp/70">
-          <div className="flex items-center gap-2 font-display text-sm font-semibold text-xp">
-            <Mic size={16} aria-hidden /> Gauntlet
+        <Link
+          href="/interview"
+          className="mode-card group border-heal/50 bg-gradient-to-br from-heal/25 via-heal/[0.08] to-surface shadow-[0_0_30px_-14px_rgba(34,197,94,0.9)] hover:border-heal"
+        >
+          <div className="flex items-start gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-heal/25 text-heal ring-1 ring-heal/50">
+              <Mic size={28} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h3 className="h-display text-2xl">Interview</h3>
+              <p className="text-sm text-muted">Get ready for what&apos;s next.</p>
+            </div>
+            <span className="chip ml-auto shrink-0 border-heal/50 bg-heal/15 text-heal">{doneInterviews} done</span>
           </div>
-          <h3 className="h-display mt-2 text-2xl">Mock interviews</h3>
-          <p className="mt-1 text-sm text-muted">Answer out loud. Reps measures your pace and pauses and presses on your resume.</p>
-          <div className="mt-5 font-display text-sm text-muted">
-            <span className="text-3xl font-bold text-text">{doneInterviews}</span> finished
+          <span className="btn mt-5 w-full bg-heal text-night shadow-[0_6px_20px_-8px_rgba(34,197,94,0.8)] hover:brightness-110">Start a mock interview</span>
+          <div className="mt-5 grid grid-cols-2 border-t border-heal/25 pt-4">
+            <div>
+              <div className="text-xs text-muted">Finished</div>
+              <div className="mt-1 font-pixel text-2xl">{doneInterviews}</div>
+            </div>
+            <div className="border-l border-heal/25 pl-4">
+              <div className="text-xs text-muted">Last run</div>
+              <div className="mt-1 font-semibold">{lastInterview ? timeAgo(lastInterview.started_at) : "Not yet"}</div>
+            </div>
           </div>
-          <span className="btn mt-5 btn-sun">Start an interview</span>
         </Link>
+      </section>
+
+      {/* Progress and recent activity */}
+      <section className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
+        <div className="panel grid gap-6 p-6 md:grid-cols-[1fr_auto_220px]">
+          <div>
+            <h2 className="h-display text-xl">Your progress</h2>
+            <div className="mt-5 grid grid-cols-3 gap-4">
+              <Ring value={studyMastery} label="Study" sub="avg mastery" color="#8B5CF6" />
+              <Ring value={problems.length ? solved / problems.length : null} label="Coding" sub="problems solved" color="#3B82F6" />
+              <Ring value={courses.length ? beaten / courses.length : null} label="Bosses" sub="beaten at least once" color="#22C55E" />
+            </div>
+          </div>
+          <div className="hidden w-px bg-line md:block" />
+          <div className="flex flex-col justify-center">
+            <div className="h-display text-3xl">Level {player.level}</div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-ink ring-1 ring-line">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-violet to-[#C084FC] shadow-[0_0_12px_rgba(139,92,246,0.8)]"
+                style={{ width: `${(player.xp_into_level / Math.max(1, player.xp_for_next)) * 100}%` }}
+              />
+            </div>
+            <div className="mt-1.5 text-sm tabular-nums text-muted">
+              {player.xp_into_level} / {player.xp_for_next} XP
+            </div>
+            <Link href="/settings" className="mt-4 flex items-center gap-2 rounded-chip border border-line bg-raised px-3 py-2 text-sm transition hover:border-xp/60">
+              <Star size={16} className="fill-xp text-xp" aria-hidden />
+              {player.achievements.unlocked} of {player.achievements.total} achievements
+            </Link>
+          </div>
+        </div>
+        <div className="panel p-6">
+          <h2 className="h-display flex items-center gap-2 text-xl">
+            <Zap size={18} className="fill-xp text-xp" aria-hidden /> Recent activity
+          </h2>
+          {player.recent_xp.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">{player.xp_rules}</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-line text-sm">
+              {player.recent_xp.slice(0, 5).map((x, i) => (
+                <li key={i} className="flex items-center gap-3 py-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-raised">{xpIcon(x.reason)}</span>
+                  <span className="min-w-0 flex-1 truncate">{XP_REASON[x.reason] ?? x.reason}</span>
+                  <span className="text-right">
+                    <span className="block font-display font-semibold tabular-nums text-violet-soft">+{x.amount} XP</span>
+                    <span className="block text-xs text-muted">{timeAgo(x.created_at)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
@@ -238,21 +350,6 @@ export default function Hub() {
                 <li className="text-muted">Nothing in progress. Start any mode above.</li>
               )}
             </ul>
-          </div>
-          <div className="panel p-6">
-            <h2 className="h-display text-xl">Recent XP</h2>
-            {player.recent_xp.length === 0 ? (
-              <p className="mt-3 text-sm text-muted">{player.xp_rules}</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-line text-sm">
-                {player.recent_xp.map((x, i) => (
-                  <li key={i} className="flex justify-between py-2">
-                    <span>{XP_REASON[x.reason] ?? x.reason}</span>
-                    <span className="font-display font-semibold tabular-nums text-xp">+{x.amount}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         </div>
       </section>

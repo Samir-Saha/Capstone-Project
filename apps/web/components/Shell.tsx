@@ -25,7 +25,7 @@ function Wordmark() {
         <rect x="2" y="2" width="28" height="28" rx="8" fill="#8B5CF6" />
         <path d="M9 23 V9 h7 a5 5 0 0 1 0 10 h-7 M16 19 l6 4" stroke="#FFFFFF" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="font-display text-xl font-bold tracking-tight">Reps</span>
+      <span className="font-pixel text-2xl font-bold tracking-wide text-text [text-shadow:2px_2px_0_rgb(139_92_246)]">Reps</span>
     </Link>
   );
 }

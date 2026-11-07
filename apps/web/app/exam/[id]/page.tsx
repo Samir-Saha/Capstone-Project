@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BossArt, type BossState } from "@/components/BossArt";
+import { ArenaStage } from "@/components/PixelScene";
 import { HurtVignette, ImpactBurst } from "@/components/Effects";
 import { DifficultyPips, Hearts, SegmentedHp } from "@/components/Hud";
 import { TeX } from "@/components/Math";
@@ -283,7 +284,9 @@ export default function FightPage() {
         <div className="relative mt-5">
           <SegmentedHp topics={fight.topics} hp={fight.hp} victoryHp={fight.victory_hp} activeTopicId={over ? null : q?.topic_id} />
         </div>
-        <div className="relative mx-auto my-4 flex h-[260px] w-[260px] items-center justify-center xl:h-[300px] xl:w-[300px]">
+        <div className="relative -mx-6 my-4 overflow-hidden border-y border-violet/30">
+        <ArenaStage className="absolute inset-0 h-full w-full" />
+        <div className="relative mx-auto flex h-[260px] w-[260px] items-center justify-center xl:h-[300px] xl:w-[300px]">
           <BossArt
             courseId={fight.course_id}
             name={fight.boss_name}
@@ -314,6 +317,7 @@ export default function FightPage() {
               </span>
             </div>
           ))}
+        </div>
         </div>
         <div className="relative mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-line pt-4">
           <Hearts hearts={fight.hearts} max={fight.max_hearts} />
