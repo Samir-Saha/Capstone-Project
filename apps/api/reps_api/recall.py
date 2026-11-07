@@ -234,9 +234,76 @@ def _section_name(section: list[tuple[str, int, str | None]], doc_counts: Counte
     return f"Pages {pages[0]}–{pages[-1]}" if len(pages) > 1 else f"Page {pages[0]}"
 
 
+EQUATION_RE = re.compile(r"(?<![\d.])(\d{1,4})\s*\+\s*(\d{1,4})\s*=\s*(\d{1,5}(?![\d.])|\?|_+)?")
+MAX_PER_ARITH_TOPIC = 60
+
+
+def _number_choices(answer: int, rng: random.Random) -> list[str]:
+    """The answer plus three near misses a real student makes: off by one, off by ten, a dropped carry."""
+    pool = [answer + d for d in (1, -1, 10, -10, 11, -9) if answer + d >= 0]
+    picks = rng.sample(pool, 3)
+    out = [str(answer), *(str(x) for x in picks)]
+    rng.shuffle(out)
+    return out
+
+
+def _arithmetic(course_id: str, extraction: Extraction, rng: random.Random) -> tuple[list[dict[str, Any]], list[str]]:
+    """Lines like "27 + 32 = 59" become addition questions. Each one is checked by
+    computing the sum; a line whose answer doesn't add up is rejected, not asked."""
+    found: list[tuple[int, int, int, int, str]] = []
+    rejected: list[str] = []
+    seen: set[tuple[int, int]] = set()
+    for page in extraction.pages:
+        for m in EQUATION_RE.finditer(page.text):
+            raw = m.group(0)
+            a, b = int(m.group(1)), int(m.group(2))
+            if (a, b) in seen:
+                continue
+            seen.add((a, b))
+            claimed = m.group(3)
+            if claimed and claimed.isdigit() and int(claimed) != a + b:
+                rejected.append("equation in the notes doesn't add up")
+                continue
+            found.append((a, b, a + b, page.number, raw.strip()))
+    if len(found) < MIN_QUESTIONS:
+        return [], rejected
+    groups = {
+        "a0": ("No regrouping", "Ones digits add to less than ten", []),
+        "a1": ("Regrouping", "A column carries a ten", []),
+        "a2": ("Sums over 100", "The total reaches the hundreds", []),
+    }
+    for a, b, total, page, line in found:
+        key = "a2" if total >= 100 else ("a1" if (a % 10) + (b % 10) >= 10 else "a0")
+        groups[key][2].append((a, b, total, page, line))
+    topics: list[dict[str, Any]] = []
+    for key, (name, desc, items) in groups.items():
+        templates: list[RecallTemplate] = []
+        for i, (a, b, total, page, _line) in enumerate(items[:MAX_PER_ARITH_TOPIC]):
+            hard = key != "a0" and i % 2 == 1
+            templates.append(
+                RecallTemplate(
+                    id=f"{course_id}:{key}:{i}",
+                    topic=key,
+                    difficulty=3 if hard else (2 if key != "a0" else 1),
+                    form="short" if hard else "mcq",
+                    prompt=f"What is {a} + {b}?",
+                    answer=str(total),
+                    choices=[] if hard else _number_choices(total, rng),
+                    quote=f"{a} + {b} = {total}",
+                    pages=[page],
+                )
+            )
+        if templates:
+            topics.append({"key": key, "name": name, "description": desc, "templates": templates})
+    return topics, rejected
+
+
 def build(course_id: str, extraction: Extraction, seed_text: str = "") -> tuple[list[dict[str, Any]], list[str]]:
     """Returns ([{key, name, description, templates: [RecallTemplate]}], rejection reasons)."""
     rng = random.Random(int(hashlib.sha1((seed_text or course_id).encode()).hexdigest()[:8], 16))
+    arith, arith_rejected = _arithmetic(course_id, extraction, rng)
+    if arith:
+        return arith, arith_rejected
     sentences = _sentences(extraction)
     if not sentences:
         return [], ["no readable sentences in the material"]

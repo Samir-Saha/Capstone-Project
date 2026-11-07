@@ -324,3 +324,22 @@ def test_short_notes_still_cover_every_heading():
     for t in topics:
         for q in t["templates"]:
             assert q.answer.lower() not in q.prompt.lower()
+
+
+def test_pasted_addition_lines_become_checked_questions():
+    from reps_api import recall
+    from reps_api.ingest.pdf import extract_text
+
+    lines = "\n".join(f"{a} + {b} = {a + b}" for a, b in [(19, 37), (28, 48), (99, 40), (14, 22), (51, 75), (52, 17)] * 3)
+    topics, rejected = recall.build("c", extract_text("2 + 2 = 5\n" + lines + "\n" + lines.replace("=", " = ")))
+    names = {t["name"] for t in topics}
+    assert names == {"No regrouping", "Regrouping", "Sums over 100"}
+    assert "equation in the notes doesn't add up" in rejected
+    qs = [q for t in topics for q in t["templates"]]
+    assert len(qs) == 6  # duplicates collapse
+    for q in qs:
+        a, b = (int(x) for x in q.prompt.removeprefix("What is ").rstrip("?").split(" + "))
+        assert q.answer == str(a + b)
+        if q.form == "mcq":
+            assert q.answer in q.choices and len(set(q.choices)) == 4
+    assert not recall.grade({"form": "short"}, "175", "176").correct
